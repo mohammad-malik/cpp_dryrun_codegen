@@ -1,0 +1,145 @@
+
+=== 2025-01-27 23:14:23 ===
+Success: True
+
+CODE:
+// Question #1
+#include <iostream>
+#include <string>
+
+using namespace std;
+
+int main() {
+  char charVar = 'A';
+  char charArray[] = "Hello";
+  string strVar = "World";
+  char* charPtr = charArray;
+
+  cout << "sizeof(charVar): " << sizeof(charVar) << endl;
+  cout << "sizeof('A'): " << sizeof('A') << endl;
+  cout << "sizeof(charArray): " << sizeof(charArray) << endl;
+  cout << "sizeof(\"Hello\"): " << sizeof("Hello") << endl;
+  cout << "sizeof(strVar): " << sizeof(strVar) << endl;
+  cout << "sizeof(charPtr): " << sizeof(charPtr) << endl;
+
+  return 0;
+}
+// Expected Output:
+// sizeof(charVar): 1
+// sizeof('A'): 1
+// sizeof(charArray): 6
+// sizeof("Hello"): 6
+// sizeof(strVar): 32
+// sizeof(charPtr): 8
+// Explanation: sizeof(char) is 1.  In C++, character literals like 'A' are of type char, not int.  sizeof(charArray) gives the size of the array in bytes, including the null terminator. sizeof("Hello") does the same. sizeof(string) gives the size of the string object itself (not the string content which is dynamically allocated), which is typically fixed. sizeof(char*) is the size of a pointer, which is architecture-dependent (here assuming 64-bit, hence 8).
+
+
+OUTPUT:
+sizeof(charVar): 1
+sizeof('A'): 1
+sizeof(charArray): 6
+sizeof("Hello"): 6
+sizeof(strVar): 32
+sizeof(charPtr): 8
+
+==================================================
+
+=== 2025-01-27 23:14:25 ===
+Success: True
+
+CODE:
+// Question #2
+#include <iostream>
+
+using namespace std;
+
+int main() {
+  int x = 5;
+  int result = x++ + x++;
+  cout << "result: " << result << endl;
+  cout << "x: " << x << endl;
+  return 0;
+}
+// Expected Output:
+// result: 11
+// x: 7
+// Explanation: The order of evaluation of operands in `x++ + x++` is undefined behavior in C++.  However, a common compiler behavior is to evaluate left-to-right. In this likely scenario:
+// 1. The first `x++` uses the current value of x (5) and then increments x to 6.
+// 2. The second `x++` uses the current value of x (6) and then increments x to 7.
+// 3. The expression becomes 5 + 6 = 11.
+// The final value of x becomes 7.  The result is compiler-dependent and should be avoided in real code.
+
+
+OUTPUT:
+result: 11
+x: 7
+
+==================================================
+
+=== 2025-01-27 23:14:27 ===
+Success: True
+
+CODE:
+// Question #3
+#include <iostream>
+
+using namespace std;
+
+int main() {
+  int val = 10;
+  int* ptr = &val;
+  const int* constPtr1 = &val;
+  int* const constPtr2 = &val;
+  const int* const constPtr3 = &val;
+
+  cout << "*ptr: " << *ptr << endl;
+  cout << "*constPtr1: " << *constPtr1 << endl;
+  cout << "*constPtr2: " << *constPtr2 << endl;
+  cout << "*constPtr3: " << *constPtr3 << endl;
+
+  *ptr = 20; // OK: Modifying value through non-const pointer
+  cout << "*ptr after change: " << *ptr << endl;
+
+  // *constPtr1 = 30; // Error: Assignment of read-only location '* constPtr1' (pointer to const int, cannot modify value)
+  cout << "*constPtr1 (after ptr change): " << *constPtr1 << endl; // Value is changed indirectly
+
+  // constPtr1 = &val; // OK: constPtr1 is pointer to const int, pointer itself can change
+  // constPtr1 = constPtr2; // OK: assigning pointer to const int from int* const is allowed (pointer to const can point to non-const)
+
+  // constPtr2 = &val; // Error: Assignment of read-only variable 'constPtr2' (const pointer, cannot change pointer itself)
+  *constPtr2 = 40; // OK: constPtr2 is const pointer to int, can modify value through pointer
+  cout << "*constPtr2 after change: " << *constPtr2 << endl;
+
+  // *constPtr3 = 50; // Error: Assignment of read-only location '* constPtr3' (pointer to const int, cannot modify value)
+  // constPtr3 = &val; // Error: Assignment of read-only variable 'constPtr3' (const pointer, cannot change pointer itself)
+
+  cout << "val: " << val << endl; // See final value of val
+
+  return 0;
+}
+// Expected Output:
+// *ptr: 10
+// *constPtr1: 10
+// *constPtr2: 10
+// *constPtr3: 10
+// *ptr after change: 20
+// *constPtr1 (after ptr change): 20
+// *constPtr2 after change: 40
+// val: 40
+// Explanation:
+// `const int* constPtr1`: Pointer to a constant integer.  You cannot modify the value pointed to by `constPtr1`, but `constPtr1` itself can be changed to point to a different address.
+// `int* const constPtr2`: Constant pointer to an integer. You cannot change the address `constPtr2` points to, but you can modify the value at that address.
+// `const int* const constPtr3`: Constant pointer to a constant integer.  You cannot change the address `constPtr3` points to, and you cannot modify the value at that address.
+// The commented-out lines demonstrate the compile-time errors you would encounter if you try to violate these const rules.  Modifying `val` through `ptr` and `constPtr2` will affect all pointers that point to `val`.
+
+OUTPUT:
+*ptr: 10
+*constPtr1: 10
+*constPtr2: 10
+*constPtr3: 10
+*ptr after change: 20
+*constPtr1 (after ptr change): 20
+*constPtr2 after change: 40
+val: 40
+
+==================================================
