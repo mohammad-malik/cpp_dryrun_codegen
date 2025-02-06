@@ -1,0 +1,136 @@
+{
+    "document_type": "data",
+    "metadata": {
+        "course_title": "Programming Fundamentals",
+        "description": "This document contains questions for the Programming Fundamentals course."
+    },
+    "sections": [
+        {
+            "title": "Question: What is the output for the following code codes in the corresponding output column. If there are any errors, then mention them clearly. Assume that the header files are included in each code's snippet.",
+            "content": {
+                "codes": [
+                    {
+                        "code": "int main(){\nint x = 5, y = 30;\nif(y % x != 2){\nx = x + 2; cout<<x<<\"\\n\"<<y;}\ncout<<x<<y;\nreturn 0;}"
+                    },
+                    {
+                        "code": "int main(){\nint a=8;\nfloat b=4.5;\na=b+3;\ncout<<a+b;\nreturn 0;}"
+                    },
+                    {
+                        "code": "int main(){\nint a=6+1, b=0, c=2;\na= 3 + (b=5);\nc=c+a*5+(c+17);\ncout<<a<<b<<c;\nreturn 0;}"
+                    },
+                    {
+                        "code": "int main(){\nint n = 10;\nif(n>0)\ncout<< “n is positive\\n”;\nif(n>10)\ncout<<“n is greater than 10”;\ncout<< “The value of n:”<<n;\nif(n<100)\ncout<<“\\n n is less than 100”;return 0;}"
+                    },
+                    {
+                        "code": "int main(){\nint x=2, y=11, z=20;\nif(x>16 && y>x || z%2==0)\ncout<<“Hello World”;\nelse\ncout<<“BYE”;\n}"
+                    },
+                    {
+                        "code": "int main(){\nint a=7, b=6,c=0;\nswitch(0){\ncase 1:\na=6; b=8;\ncout<<a<<endl;\ncase 0:\nb=a+c;\ncout<<b<<endl;\ndefault:\nc=b+3;\ncout<<a<<“ ” <<b<<“ ”<<c;}}"
+                    },
+                    {
+                        "code": "int main(){\nint a, b, mult;\ncout<<“Enter 1st number”;\ncin>>a;\ncout<<“Enter 2nd number”;\ncin>>b;\nsum = a+b;\ncout<<sum;\nreturn 0;}"
+                    },
+                    {
+                        "code": "int main(){\nint Ascii_value = 20;\nif( Ascii_value>=0 && Ascii_value<=47 ||\nAscii_value>=54 && Ascii_value<=64 ||\nAscii_value>=91)\ncout<< “You have entered special character”;\nreturn 0;}"
+                    },
+                    {
+                        "code": "int main(){\nint n = 9, div = 0;\ndiv = n/0;\ncout << “result = “<< div;}"
+                    },
+                    {
+                        "code": "int main(){\nint a, b, c;\na = b + c;}"
+                    },
+                    {
+                        "code": "int i = 6, counter = 0;\nwhile(i-2)\n{\ni++;\ncounter++;\n}\ncout << \"Loop is running for \" << counter << \" time\" <<endl;\nOutput/Error:\nInfinite Loop."
+                    },
+                    {
+                        "code": "#include<iostream.h>\nint MyFunction(int a,int b=3,int c=3)\n{\ncout << ++a * ++b * --c ;\nreturn 0;\n}\nint main()\n{\nMyFunction(5, 0, 0);\nreturn 0;\n}\nOutput/Error:\n-6"
+                    },
+                    {
+                        "code": "#include<iostream>\nusing namespace std;\nint main()\n{\nint a = 32, *ptr = &a;\nchar ch = 'A', *cho =&ch;\n//ASCII of 'A' is 65\n*cho += 3;\n*ptr += ch;\ncout << a << \",\" << ch << endl;\nreturn 0;\n}\nOutput/Error:\n100, D"
+                    },
+                    {
+                        "code": "int my_func(int num)\n{\ncout << num << endl;\nreturn num*-2;\n}\nint main()\n{\ncout<<my_func(my_func(4)*2);\nreturn 0;}\nOutput/Error:\n4\n-16\n32"
+                    },
+                    {
+                        "code": "void f2(int *p){\nint *x = new int;\n*x = 10;\np = x;\ncout<<*p<<endl;}\nvoid f1(int *p){\nf2(p);}\nint main()\n{\nint x =5;\nint *p =&x;\nf1(p);\ncout<<*p<<endl<<x<<endl;\nreturn 0;}\nOutput/Error:\n10\n5\n5"
+                    },
+                    {
+                        "code": "int a=20;\n//suppose a is stored at address 0x4B\nint *p = &a;\n*p = 30;\ncout<<a<<endl<<p;\nOutput/Error:\n30\n0x4B"
+                    },
+                    {
+                        "code": "int x=100, y=200;\nint *const p;\np = &x;\ncout<<*p<<endl;\np = &y;\ncout<<*p<<endl;\nOutput/Error:\nCompilation error."
+                    },
+                    {
+                        "code": "int a = 0, b=36;\nfloat f=3.9;\nb+=(a = 50)*(int)f%3+5.1-6.8*10-b/5;\ncout << a << \"$\" << b;\nOutput/Error:\n50$-33"
+                    },
+                    {
+                        "code": "char* str1 = \"Self-conquest is the greatest victory 😌\";\nchar str2[80];\nchar* src = str1;\nchar* dest = str2;\nwhile( *src )\n{\n*dest++ = *src++;\n}\n*dest ='\\0';\ncout << str2 << endl;\nOutput/Error:\nSelf-conquest is the greatest victory 😌"
+                    },
+                    {
+                        "code": "#include<iostream>\nusing namespace std;\nint fib(int n=1, int m=2) {\nstatic int memo[100] ={0};\nif (n <= 1) {\nreturn n;\n}\nif (memo[n] == 0) {\nfor (int i = 0; i < 2; ++i)\n{\nmemo[n] = (n-1) + (n-2);\ncout<<memo[n]<<endl;\n}\n}\nelse\ncout<<memo[n]<<endl;\nreturn memo[n];\n}\nint main() {\nstatic int n=3;\nstd::cout << fib(5) << std::endl;\nstd::cout << fib(10) << std::endl;\nstd::cout << fib(5) << std::endl;\nreturn 0;\n}\nOutput/Error:\n7\n7\n17\n17\n7\n7"
+                    },
+                    {
+                        "code": "void magic (int* ptr, int size) {\nptr = new int[size+1];\nfor(int i=size,j=0;i>=0;i--,j++)\nptr[j]=i;\n}\nint main() {\nint* ptr = nullptr;\nint size = 5;\nmagic(ptr,size);\nfor(int i=0; i<size;i++)\ncout<<*(ptr + i)<<\" \";\ndelete [] ptr;\nptr = nullptr;\nreturn 0;\n}\nOutput/Error:\nSegmentation fault"
+                    },
+                    {
+                        "code": "const char* c[] = { \"PF\", \"Exam\", \"centipede\",\n\"Project\" };\nchar const * cp[] = { c + 2, c + 3, c , c + 1 };\nchar const *** cpp[] = { cp + 1, cp + 2 };\nint main()\n{\ncout << ***cpp[1] << endl;\ncout << (*cp)[-1][0] << endl;\ncout << (*cp)[-1] << endl;\ncout << (*(cpp[1][-1]) + 3) << endl;\nreturn 0;\n}\nOutput/Error:\nP\ncentipede\nExam\nject"
+                    },
+                    {
+                        "code": "int Quad(int n) {\n return (n*n*n*n);\n}\nint main() {\n int num=1634;\n int res=0;\n int remainder;\n int n = num;\n while(n!=0) {\n remainder = n % 10;\n res = res + Quad(remainder);\n n = n / 10;\n }\n cout<<\"\\n Result:\"<<res;\n return 0;\n}"
+                    },
+                    {
+                        "code": "int main() {\n int y = 2;\n switch (y) {\n case 0: y = y + 11;\n case 1: y = y / 2;\n case 2: y = y * 5;\n case 3: y = y + 1;\n default: y = y % 3;\n }\n cout << y << endl;\n return 0;\n}"
+                    },
+                    {
+                        "code": "int main() {\n int i, j, m, answer;\n m = 0;\n j = 3;\n while(m < 3) {\n for (i = 0; i < j; i++) {\n answer = i * m;\n cout << answer;\n }\n m = m + 1;\n cout << endl;\n }\n return 0;\n}"
+                    },
+                    {
+                        "code": "int main() {\n int num[5]={1,2,3,4,5};\n int* p;\n p = num;\n *p = 20;\n p = &num[1];\n *(++p) = 30;\n p = num + 4;\n *p = 30;\n p = num;\n *(p + 3) = 40;\n for (int i = 1; i < 5; i++) {\n cout << num[i] << \" \";\n return 0;\n}"
+                    },
+                    {
+                        "code": "int main() {\n int x[10]={0,1,2,3,4,5,6,7,8,9};\n int *ptr1,*ptr2;\n ptr1=x+2;\n ptr2=&x[9];\n cout<<*ptr1 * *ptr2;\n return 0;\n}"
+                    },
+                    {
+                        "code": "int WHAT(int A[], int N){\n int ANS = 0;\n int S = 0;\n int E = N-1;\n for(S = 0, E = N-1; S < E; S++, E--)\n ANS += A[S] - A[E];\n return ANS;\n}\nint main(){\n int A[] = { 1, 2, 3, 4, -5, 1, 3, 2, 1};\n cout<< WHAT(A, 7);\n return 0;\n}"
+                    },
+                    {
+                        "code": "int main() {\n int *a, *b, *c;\n int x = 800, y = 300;\n a = &x;\n b = &y;\n *a = (*b) - 200;\n cout<<x<<\" \"<<*a;\n return 0;\n}"
+                    },
+                    {
+                        "code": "int get(int N=0){\n int static x = 0;\n return x++;\n}\nint main(){\n const int N = 6;\n int nums[] = { 1,2,3,4,5,6 };\n int idx=1;\n while (idx)\n {\n idx = get();\n if (idx >= N)\n {\n break;\n }\n cout << nums[idx] << endl;\n }\n return 0;\n}"
+                    },
+                    {
+                        "code": "int main() {\n int i, j, var = 'A';\n for (i = 3; i >= 1; i--) {\n for (j = 0; j < i; j++) {\n if((((i+var + j))%4)==0)\n continue;\n cout<<char(i+var + j);\n }\n cout<<endl;\n }\n return 0;\n}"
+                    },
+                    {
+                        "code": "void Sum(int a) {\n cout << a + 100 << endl;\n}\nvoid Sum(int a, int b, int c = 10) {\n cout << a + b + c << endl;\n}\nint main() {\n Sum('A');\n Sum('B', 30);\n Sum(20, 30, 90.5);\n return 0;\n}"
+                    },
+                    {
+                        "code": "void find(int int& a, int& b, int& int=4);\nint main() {\n int one=1, two=2, three=3;\n find(one, two, three);\n cout<<one<<\",\"<<two<<\",\"<<three<<endl;\n return 0;\n}"
+                    },
+                    {
+                        "code": "void find(int a, int& b, int& c, int d) {\n if(d<1)\n return;\n cout<<a<<\",\"<<b<<\",\"<<c<<endl;\n c = a + 2 * b;\n int temp = b;\n b = a;\n a = 2 * temp;\n d%2?find(b,a,c,d-1):find(c,b,a,d-1);\n}"
+                    },
+                    {
+                        "code": "char c[7][11] = {\"PF-Final\",\"PF\",\"Exam\",\"Students\",\"lazy\",\"2022\",\"programmer\"};\nchar* add(char* ptr){\n return ptr + 11;\n}\nchar* sub(char* ptr){\n return ptr - 11;\n}\nint main() {\n char * mystery=c[4];\n cout<<mystery<<endl;\n cout<<sub(mystery)[2]<<endl;\n mystery= sub(mystery);\n cout<<mystery<<endl;\n cout<<sub(mystery) + 1 <<endl;\n cout<<add(add(mystery))+13<<endl;\n cout<<*add(add(mystery))<<endl;\n return 0;\n}"
+                    },
+                    {
+                        "code": "const int s=3;\nint* listMystery(int list[][s]){\n int i = 1,k=0;\n int *n = new int[s];\n for(int i=0;i<s;++i)\n n[i]=0;\n while(i < ::s)\n {\n int j = ::s - 1;\n while(j >= i)\n {\n n[k++]=list[j][i] * list[i][j];\n j = j - 1;\n }\n i = i + 1;\n }\n return n;\n}\nvoid displayMystery(int * arr){\n cout<<\"[ \";\n for(int i=0;i<s;++i)\n cout<<arr[i]<<((i!=::s - 1)?\", \" : \" \");\n cout<<\"]\"<<endl;\n}\nint main(){\n int L[][::s] = {{8, 9, 4}, {2, 3, 4}, {7, 6, 1}};\n int *ptr=listMystery(L);\n displayMystery(ptr);\n delete [] ptr;\n return 0;\n}"
+                    },
+                    {
+                        "code": "int main() {\n  int size = 5;\n  int* arr = new int[size];\n  for (int i = 0; i < size; ++i) {\n    arr[i] = i * 2;\n  }\n  int* ptr = arr + 2;\n  cout << *ptr << endl;\n  delete[] arr;\n  return 0;}"
+                    },
+                    {
+                        "code": "\nvoid allocateMemory(int** ptr) {\n  *ptr = new int;\n  **ptr = 42;\n}\nint main() {\n  int* value = nullptr;\n  allocateMemory(&value);\n  cout << &value << \" \" << *value << endl;\n  delete value;\n  value = nullptr;\n  return 0;\n"
+                    },
+                    {
+                        "code": "\nvoid magic(int* ptr, int size) {\n  ptr = new int[size+1];\n  for(int i=size; j>=0; i=0i--, j++)\n  ptr[j]=1;\n}\nint main() {\n  int* ptr = nullptr;\n  int size = 5;\n  magic(ptr,size);\n  for(int i=0; i<size; i++)\n  cout<<(ptr + i)<< \" \";  }Error\n  delete [] ptr;\n  ptr = nullptr;\n  return 0;\n"
+                    },
+                    {
+                        "code": "\nconst char* c[] = { \"PF\", \"Exam\", \"centipede\", \"Project\" };\nconst char* cp[] = { c + 2, c + 3, c, c + 1 };\nchar const*** cpp[] = { cp + 1 , cp + 2 };\nint main() {\n  cout << ***cpp[1] << endl;\n  cout << (*cpp)[1][0] << endl;\n  cout << (*cpp)[-1] << endl;\n  cout << (*cpp)[-1] << endl;\n  cout << (*cpp[1][1]) + 3) << endl;\n  return 0;\n"
+                    }
+                ]
+            }
+        }
+    ]
+}

@@ -1,0 +1,135 @@
+{
+    "document_type": "data",
+    "metadata": {
+        "course_title": "Object Oriented Programming",
+        "description": "This file contains code snippets for OOP concepts. Starting from pointers and Recursion. All important OOP concepts are focused including: Constructors & Destructors, Copy Constructors, Shallow & Deep Copy, Static, Constant Member Functions, Operator Overloading, Object Typecasting, Association, Composition, Aggregation, Inheritance & its types, Polymorphism, Diamond Problem."
+    },
+    "sections": [
+        {
+            "title": "Code Snippets",
+            "content": "These code snippets are for OOP concepts. Starting from pointers and Recursion. All important OOP concepts are focused including: Constructors & Destructors, Copy Constructors, Shallow & Deep Copy, Static, Constant Member Functions, Operator Overloading, Object Typecasting, Association, Composition, Aggregation, Inheritance & its types, Polymorphism."
+        },
+        {
+            "title": "Questions",
+            "content": [
+                {
+                    "Question - 1": "void mystery(int* ptr, int s) {ptr = new int[s]; for (int i = 0, j = s; i < s; ++i, j--) *(ptr + i) = j;} int main() {int* ptr, s = 5; mystery(ptr, s); for (int i = 0; i < s; ++i) cout << ptr[i] << \" \"; delete[] ptr; ptr = NULL; return 0;}"
+                },
+                {
+                    "Question - 2": "#include <iostream> using namespace std; char c[7][11] = { \"OOP-Final\", \"OOP\", \"Exam\", \"Students\", \"lazy\", \"2023\", \"programmer\" }; char* add(char* ptr) { return ptr + 11; } char* sub(char* ptr) { return ptr - 11; } int main() { char* mystery = c[4]; cout << mystery << endl; cout << sub(mystery)[2] << endl; mystery = sub(mystery); cout << mystery << endl; cout << sub(mystery) + 1 << endl; cout << add(add(mystery)) + 13 << endl; cout << *add(add(mystery)) << endl; return 0;}"
+                },
+                {
+                    "Question - 3": "const char* c[] = { \"OOP\", \"Exam\", \"Oopsmid-1\", \"MID\" }; const char** cp[] = { c + 2, c + 3, c, c + 1 }; char const*** cpp = cp; int main() { cout << *cpp[1] << endl; cout << **(*(cpp + 2) + 2) + 3) << endl; cout << (*cpp)[-1] << endl; cout << *(*(cpp + 3)[-1]) << endl; return 0;}"
+                },
+                {
+                    "Question - 4": "#include <iostream> using namespace std; main() { int ary[2][2][4] = { { {1,2,3,5},{3,4,6,7} }, { {5,6,5,1},{7,8,2,4} } }; int(*p)[2][4] = ary; cout << *(*(*(p + 2) + 1) + 1); for (int i = 0; i < 2; i++) { for (int j = 0; j < 2; j++) { for (int k = 0; k < 2; k++) { cout << *(*(*(p + i) + j) + k) << \" \"; } cout << \"\\n\"; } cout << \"\\n\\n\\n\"; } return 0;}"
+                },
+                {
+                    "Question - 5": "int main() { int array[2][5][2] = { {10,20,30,40,50,60,70, 80,90,100,18,21,3,4, 5,6,7,8,9,11} }; int(*p)[5][2]; p = array; for (int i = 0; i < 2; i++) cout << \"the vale is \" << *(*(int*)(p + i) + (1 * 2) + i); return 0;}"
+                },
+                {
+                    "Question - 6": "#include <iostream> using namespace std; main() { int ary[2][6] = { {2,5,6,4,9,1},{7,8,12,11,32,11} }; int(*ptr)[2] = (int(*)[2])ary + 3; for (int i = 0; i < 2; i++) { for (int j = 0; j < 3; j++) { cout << *(*(ptr + i) + j) << \" \"; } cout << endl; } return 0;}"
+                },
+                {
+                    "Question - 7": "#include <iostream> using namespace std; int main() { const char* str[] = { \"AAAAAA\", \"BBBBB\", \"CCCCCC\", \"DDDDDD\" }; const char** sptr[] = { str + 3, str + 2, str + 1, str }; const char*** pp; pp = sptr; ++pp; cout << **++pp + 2; return 0;}"
+                },
+                {
+                    "Question - 8": "#include <iostream> using namespace std; main() { int* ip = new int; short* sp; char* cp; *ip = 16706; //Hex 4142 *ip = 65; //cp=ip; cp = (char*)ip; cout << *cp << endl; cout << *(cp + 1) << endl; sp = (short*)ip; cout << *sp; return 0;}"
+                },
+                {
+                    "Question - 9": "#include <iostream> using namespace std; void foo(int(*ptr)[4]) { cout << ptr[0][0] << \" \"; } int main() { int arr[9] = { 1, 2, 4, 6, 8, 10, 12, 114, 16, 18 }; foo((int(*)[4])arr); foo((int(*)[4])arr + 2); foo((int(*)[4])arr + 1); int arr2[3][4] = { { 12, 24, 36, 48, 60, 72, 84, 96, 108, 120, 132, 144} }; foo((int(*)[4])arr2 + 1); return 0;}"
+                },
+                {
+                    "Question - 10": "int print_row(int ct, int num) { if (num == 0) return ct; cout << ct << \"\\t\"; print_row(ct + 1, num - 1); } void pattern(int n, int count, int num) { if (n == 0) return; count = print_row(count, num); cout << endl; pattern(n - 1, count, num + 1); } int main() { int n = 5; pattern(n, 1, 1); return 0;}"
+                },
+                {
+                    "Question - 11": "#include <iostream> using namespace std; void find(int&, int&, int&, int& = 4); int main() { int one = 1, two = 2, three = 3; find(one, two, three); cout << one << \" \" << two << \" \" << three << endl; return 0; } void find(int a, int& b, int& c, int d) { if (d < 1) return; cout << a << \" \" << b << \" \" << c << endl; c = a + 2 * b; int temp = b; b = a; a = 2 * temp; d % 2 ? find(b, a, c, d - 1) : find(c, b, a, d - 1);}"
+                },
+                {
+                    "Question - 12": "#include <iostream> using namespace std; int fun(int n, int* fp) { int t, f; if (n <= 2) { *fp = 1; return 1; } t = fun(n - 1, fp); f = t + *fp; *fp = t; return f; } int main() { int x = 15; cout << fun(5, &x) << endl; return 0;}"
+                },
+                {
+                    "Question - 13": "#include <iostream> using namespace std; class Dummy { float z; int x, y; public: Dummy(int x = 0, int y = 1) : x(x + 2), y(y + 3) { z = x + y + 1; } void print() { cout << \"X = \" << x << endl << \"Y = \" << y << endl << \"Z = \" << z; } }; int main() { Dummy d(10); d.print(); return 0;}"
+                },
+                {
+                    "Question - 14": "#include <iostream> using namespace std; class A { public: A(int i = 0, int j = new int{ i + 1 } + 1) { this->i = abc.i; this->s = new int(*abc.s); cout << \"Out Of \" << i + **s << endl; } A magic(A abc) { bcd(2); return abc; } ~A() { cout << \"Out A \" << i << endl; } private: int i; int* s; }; int main() { A b(3), a(4); a = b.magic(a).magic(b); return 0;}"
+                },
+                {
+                    "Question - 15": "#include <iostream> using namespace std; class mystery { private: int* n; public: mystery():n(new int) { *n = 5; } mystery(int nn):n(new int) { *n = nn; } mystery& operator=(const mystery& n) { this->n = new int; *this->n = *n.n; return *this; } mystery& display() { cout << *n << \" \"; return *this; } void increase() { *n += 1; } }; int main() { mystery b(1), c = b, d; b.increase(); d = b = c; mystery a(d); a.increase(); c.increase(); a.display().display(); mystery l = b.display(); l.display(); c.display(); return 0;}"
+                },
+                {
+                    "Question - 16": "#include <iostream> using namespace std; class A { int data[2]; int arr[3]; int ss; public: A(int x, int y) : data{ x, y }, arr{ x + y, y - x, y % x } { ss = y / x; } A(int* ptr) : data{ *ptr, *(ptr + 1) }, arr{ 0 } { ss = *ptr; } void display() { cout << data[1] + ss + arr[2] << endl; } ~A() { cout << arr[0] - data[0] - ss << endl; } }; int main() { A a(22, 33); int* arr = (int*)&a; arr += 3; cout << arr[-2] + arr[2] << endl; a = arr - 2; a.display(); return 0;}"
+                },
+                {
+                    "Question - 17": "#include <iostream> using namespace std; class mystery { private: int* n; public: mystery():n(new int) { *n = 5; } mystery(int nn):n(new int) { *n = nn; } mystery& operator=(const mystery& n) { this->n = new int; *this->n = *n.n; return *this; } mystery display() { cout << *n << \" \"; return *this; } int increase() { *n += 1; return *n; } ~mystery() { cout << Bye << *n << endl; } }; int main() { mystery b(1), c = b, d; b.display().increase(); mystery a(d); a.display().increase(); mystery l = b.display().increase(); c.display().increase(); return 0;}"
+                },
+                {
+                    "Question - 18": "#include <iostream> using namespace std; class mystery { private: int* n; public: mystery():n(new int) { *n = 5; } mystery(int nn):n(new int) { *n = nn; } mystery(const mystery& n) { this->n = new int; *this->n = *n.n; } mystery display() { cout << *n << \" \"; return *this; } int increase() { *n += 1; return *n; } operator int() { return *n + 3; } int& operator()(int ss) { *n += ss; return *n; } ~mystery() { cout << Bye << *n << endl; } }; int main() { mystery b(1), c = b, d; b = c = d; mystery a(d); a.increase(); a.display(); increase(); mystery l = b.display().increase(); l.display().increase(); int* ptr = new int(c); cout << ptr; delete ptr; c(5) = 3; c.display(); return 0;}"
+                },
+                {
+                    "Question - 19": "#include <iostream> using namespace std; class mystery { private: int* n; int arr[3]; public: mystery():n(new int(5)), arr{ *n, *n + 1, *n + 2 } { (*this)(4, 2) = 8; } mystery(int nn):n(new int), arr{ nn, nn + 1, nn + 2 } { *n = nn; } mystery(const mystery& n) { this->n = new int; *this->n = *n.n; this->arr[0] = n.arr[0]; this->arr[1] = n.arr[1]; this->arr[2] = n.arr[2]; } mystery display() { cout << *n << \" \" << arr[0] << \" \"; return *this; } int increase() { *n += 1; return *n; } operator int() { return *n + 3; } int& operator()(int ss, int pr) { *n += ss; return this->arr[ss - pr]; } ~mystery() { cout << Bye << *n + arr[1] << endl; } }; int main() { static mystery b(1), c = b, d; b = c = d; mystery a(d); a.increase(); a.display(); increase(); mystery l = b.display().increase(); l.display().increase(); static mystery s = l.increase(); s(5, 3) = 6; b(4, 3) = 1; a(8, 8) = 7; return 0;}"
+                },
+                {
+                    "Question - 20": "#include <iostream> using namespace std; class magic { int s; public: magic(int ss): s(ss + 2) {} int do_magic() { cout << MAGIC << s << endl; return s; } ~magic() { cout << No MAGIC << s << endl; } }; class mystery { private: int* n; int arr[3]; public: mystery():n(new int(5)), arr{ *n, *n + 1, *n + 2 } {} mystery(int nn):n(new int), arr{ nn, nn + 1, nn + 2 } { *n = nn; } mystery(const mystery& n) { this->n = new int; *this->n = *n.n; this->arr[0] = n.arr[0]; this->arr[1] = n.arr[1]; this->arr[2] = n.arr[2]; } int& operator()(int ss, int pr) { *n += ss; return this->arr[ss - pr]; } magic* operator->() { static int s = 2; magic* m = new magic(s); s++; return m; } mystery operator++() { *n += 1; return *n; } void smile(int a) { cout << (*this)(7, a) << endl; } ~mystery() { friend ostream& operator<<(ostream& out, const mystery& m); ostream& operator<<(ostream& out, const mystery& m) { cout << *n << \" \" << m.arr[0] << endl; return out; } }; int main() { static mystery b(1), c = b, d; mystery* monster = new mystery(5); mystery a(d); ++a; mystery l = do_magic(); monster->smile(monster)->do_magic(); b(4, 3) = l->do_magic(); a(8, 8) = a->do_magic(); cout << a << b; return 0;}"
+                },
+                {
+                    "Question - 21": "#include <iostream> using namespace std; class Num { int* n; static int c; public: Num():n(new int) { *n = 4; } Num(int nn):n(new int) { c++; cout << *n << \" \" << c << endl; } Num(Num& otherNum):n(otherNum.n) { cout << *n << endl; *n += 4; c++; } void display() const { cout << *n << endl; } void display(Num n) const { *n.n += 1; cout << this->*n.n << endl; } ~Num() { cout << c << \" \" << n << endl; -c; } }; int Num::c = 0; int main() { Num a; int n = 8; Num b(&n); const Num c(a); c.display(); a.display(b); cout << -------- << endl; return 0;}"
+                },
+                {
+                    "Question - 22": "#include <iostream> using namespace std; class A { int x; public: A(int a): x(a) { cout << x << endl; } ~A() { cout << x << endl; } }; A a(2); int main(int argc, char* argv[]) { static A b(3); A c(4); return 0;}"
+                },
+                {
+                    "Question - 23": "#include <iostream> using namespace std; class Mystery { public: static int n; Mystery() { cout << n++ << endl; } Mystery(int i) { n = i; cout << n << endl; } static void somefunc() { n = 5; } Mystery(Mystery const& otherNum) { n += 5; cout << n << endl; } ~Mystery() { cout << -n << \\n\"; } }; int a; void fun(Mystery n) { cout << n.n << endl; n.somefunc(); } int Mystery::n = 0; int main() { Mystery b(9), c; fun(b); return 0;}"
+                },
+                {
+                    "Question - 24": "#include <iostream> using namespace std; class Complex { double r, i; public: Complex(double r = 1.0, double i = 1.0) { set(r, i); } void set(double r, double i) { Complex::r = r; this->i = i; } void print() { if (i < 0) cout << r << \"\" << i << \"i\" << endl; else cout << r << \"+\" << i << \"i\" << endl; } Complex operator+(Complex R) { Complex tmp; tmp.r = r + R.r; tmp.i = i + R.i; return tmp; } Complex operator++() { Complex tmp = *this; r++; i++; return tmp; } Complex operator++(int) { ++(*this); return *this; } }; int main() { Complex A(3, 4), B(5, -6); A.print(); B.print(); Complex C; C = A + B; C.print(); (++A).print(); C = ++A; C.print(); (A++).print(); A.print(); return 0;}"
+                },
+                {
+                    "Question - 25": "#include <iostream> using namespace std; class Point { int x, y; public: Point(int x = 0, int y = 0) { this->x = x; this->y = y; print(); } void operator()() { cout << ( << x << , << y << ) << endl; } Point& operator()(int y) { this->y = y; return *this; } ~Point() { cout << Point is going:; (*this)(); } }; Point p3; int main() { Point* p = new Point(5, 6); static Point p1(p3); p1(8)(9); delete p; Point p2(7); cout << -------- << endl; return 0;}"
+                },
+                {
+                    "Question - 26": "#include <iostream> using namespace std; class ItsMagic { public: int* value; ItsMagic(int n = 8):value(new int[n]) { for (int i = 0; i < n - 7; i++) { *(value + i + 1) = *(value + i) + 3; cout << Hello << value[2] << endl; } } ItsMagic(const ItsMagic& oh) { this->value = oh.value + 1; } int& operator()(int* a) { *((this->value + 2) + *a) = ++N; cout << Is it you:) << this->value << endl; return *(this->value + 1); } void increase(int& n) { static int N = 5; n = N++; if (n % 3 == 2) this->twice(N); cout << Seriously << N << endl; } void twice(int& n) { static int N = 6; n = ++N; if (n % 4 == 0) this->increase(N); cout << Please << N << endl; } ~ItsMagic() { int s = 3; cout << Dont:; this->increase(s); cout << s << endl; } }; class NoWay { public: ItsMagic okay; int s; NoWay(int a):okay() { s = *okay.value + 3; cout << *(okay.value + 2) << endl; } ItsMagic neverMind() { okay.increase(s); cout << Never Mind: << s + okay.value + 1) << endl; return okay; } ~NoWay() { int sum = 0; cout << Are you going? \\n\"; for (int i = 0; i < 3; i++) sum += okay.value[i]; cout << Here take this -> << sum << endl; } }; void comeHere(ItsMagic boo) { boo(boo, value); cout << Bye << boo.value++ << endl; } int main() { ItsMagic isIt; NoWay areYou(10); comeHere(areYou.neverMind()); return 0;}"
+                },
+                {
+                    "Question - 27": "#include <iostream> using namespace std; class Point { int x, y; public: Point(int a = 0, int b = 0) { x = a; y = b; print(); } void print() { cout << ( << x << , << y << ) << endl; } ~Point() { cout << Point is going << endl; } }; class Circle { Point center; float radius; public: Circle():center(0, 0) { radius = 0; cout << The basic circle << endl; } Circle(Point p):center(p) {} Circle(const Circle& c):center(c.center), radius(c.radius) { cout << The copied circle; center.print(); } ~Circle() { cout << Circle is going << endl; } }; int main() { Point p1; Circle c1; static Circle c2(p1); Circle c3(c2); return 0;}"
+                },
+                {
+                    "Question - 28": "#include <iostream> using namespace std; class Engine { int cylinders; public: Engine(int numCylinders) : cylinders(numCylinders) { cout << Creating Engine with << cylinders << cylinders << endl; } ~Engine() { cout << Destroying Engine with << cylinders << cylinders << endl; } }; class Car { public: Engine engine; string make; string model; Car(const string& carMake, const string& carModel, int numCylinders) : engine(numCylinders), make(carMake), model(carModel) { cout << Creating << make << << model << with << numCylinders << cylinders << endl; } ~Car() { cout << Destroying << make << << model << with << engine.cylinders << cylinders << endl; } }; class Person { public: string name; Person(const string& personName) : name(personName) { cout << Creating Person named << name << endl; } ~Person() { cout << Destroying Person named << name << endl; } }; class Driver { private: Person person; Car car; public: Driver(const string& driverName, const string& carMake, const string& carModel, int numCylinders) : person(driverName), car(carMake, carModel, numCylinders) { cout << Creating Driver named << driverName << with << carMake << << carModel << with << numCylinders << cylinders << endl; } ~Driver() { cout << Destroying Driver named << person.name << with << car.make << << car.model << with << car.engine.cylinders << cylinders << endl; } }; int main() { Car myCar(Honda, Civic, 4); Person myPerson(Alice); Driver myDriver(Bob, Toyota, Corolla, 4); { Driver myDriver(Charlie, Ford, Mustang, 8); } return 0;}"
+                },
+                {
+                    "Question - 29": "#include <iostream> using namespace std; class A { private: int a; public: A(int x = 10) { a = x; cout << A() called for << a << \\n\"; } ~A() { cout << ~A() called for a = << a << endl; } void Print() { cout << a = << a << endl; } }; class B { private: int b; A a; A* aptr; public: B(): aptr(0) { cout << B() called. << endl; } B(int x, A* objPtr):a(x + 5) { b = x; aptr = objPtr; cout << B() called for b = << b << endl; } void Print() { cout << b = << b << endl; a.Print(); if (aptr != 0) aptr->Print(); } ~B() { cout << ~B() called for b = << b << endl; } }; int main() { A a1(5); B b1(10, &a1); cout << --------------------\\n\"; b1.Print(); return 0;}"
+                },
+                {
+                    "Question - 30": "#include <iostream> using namespace std; class Number { public: int* value; Number(int v) { value = new int(v); cout << Value: << *value << endl; } ~Number() { cout << Killed: << *value << endl; delete value; } }; class Question { public: Number marks; Question(int A): marks(A) { cout << New Object \\n\"; } Question(const Question& X): marks(*X.marks.value + 10) { cout << ItsEasy << endl; } }; void Difficult(Question why) { Question Quest = why; } int main() { Question Answer(1); Difficult(Answer); return 0;}"
+                },
+                {
+                    "Question - 31": "#include <iostream> using namespace std; class XYZ { private: int x; public: XYZ(int y = 10) { x = y; cout << XYZ() called for << x << endl; } void Print() { cout << x << endl; } ~XYZ() { cout << ~XYZ() Called.\\n\"; } }; class ABC { int c; XYZ a; XYZ* b; public: ABC(int val = 50) { c = val; cout << ABC() called for << c << endl; b = new XYZ(a); } void Print() { cout << c = << c << endl; cout << a = ; a.Print(); if (b != nullptr) { cout << b = ; b->Print(); } } }; int main() { ABC* x = new ABC; x->Print(); XYZ* ptr = &(x->a); delete x; ptr->Print(); return 0;}"
+                },
+                {
+                    "Question - 32": "#include <iostream> using namespace std; class Complex { private: double real; double imag; public: Complex(double r = 0.0, double i = 0.0) : real(r), imag(i) {} bool operator == (Complex rhs) { return (real == rhs.real && imag == rhs.imag); } }; int main() { Complex com1(3.0, 0.0); if (com1 == 3.0) cout << Same; else cout << Not Same; return 0;}"
+                },
+                {
+                    "Question - 33": "#include <iostream> using namespace std; class fun { private: int x; public: fun(int x1 = 0) { x = x1; cout << constructor of:; print(); } int getX() { return x; } void setX(int x) { x = x; } fun(const fun& obj) { x = obj.x; cout << Copy constructor of:; print(); } ~fun() { cout << destructor of:; print(); } }; void print(const int* p, int n) { for (int i = 0; i < n; i++) cout << p[i] << ; cout << endl; } int main() { cout << Output (if any): << endl; fun a(6); int lis[6] = { 0, 10, 20, 30, 40, 50 }; int length = 3; int* array = &length; int* p = lis; fun b = function(array, p, a); cout << content of array:; print(array, a.getX()); cout << content of p:; print(p, length / 2); cout << content of list:; print(lis, length); cout << Output (if any): << endl; return 0;}"
+                },
+                {
+                    "Question - 34": "#include <iostream> class Base { public: virtual void sayHello() { std::cout << Hello world, I am Base << std::endl; } }; class Derived : public Base { public: void sayHello() { std::cout << Hello world, I am Derived << std::endl; } }; void testPointer(Base* obj) { obj->sayHello(); } void testReference(Base& obj) { obj.sayHello(); } void testObject(Base obj) { obj.sayHello(); } int main() { std::cout << Testing with pointer argument:; Derived* derived = new Derived; testPointer(derived); std::cout << Testing with reference argument:; Derived derived; testReference(derived); std::cout << Testing with object argument:; Derived derived; testObject(derived); return 0;}"
+                },
+                {
+                    "Question - 35": "#include <iostream> class Vehicle { public: Vehicle() { cout << Vehicle() called.\\n\"; } ~Vehicle() { cout << ~Vehicle() called.\\n\"; } virtual void Print() { cout << Test\\n\"; } }; class MotorCycle : public Vehicle { public: MotorCycle() { cout << MotorCycle() called.\\n\"; } ~MotorCycle() { cout << ~MotorCycle() called.\\n\"; } }; class Car : public Vehicle { public: Car() { cout << Car() called.\\n\"; } ~Car() { cout << ~Car() called.\\n\"; } virtual void Print() { cout << Check\\n\"; } }; int main() { Vehicle* vehicles[3]; vehicles[0] = new MotorCycle; vehicles[1] = new Car; vehicles[2] = new Vehicle; for (int i = 0; i < 3; i++) vehicles[i]->Print(); for (int i = 0; i < 3; i++) delete vehicles[i]; return 0;}"
+                },
+                {
+                    "Question - 36": " //-------------------Syntax Errors--------------------// //------Do not Run only point out Errors------------// class D { int y; void walk() { cout << walk of D << endl; } public: D(int y1 = 0) { y1 = y; } }; class A { public: int x; void print() { cout << ----A---- x << endl; } A(int x1 = 0) { x = x1; } }; class B : A { D x; public: D gets() { return x; } virtual void print() = 0; B(int x1, int y1): D(y1), A(x1) { } }; class C : B { int x; C(int x1 = 0, int x2 = 10, int x3 = 20) : B(x1, x2) { x = x3; } void print() { cout << ----C---- x << endl; A::print(); B::print(); } void fun() { cout << its fun << endl; } }; int main() { B* p = new B; A* q = new A; q->print(); q->A(); B* ptr = new C; ptr->x = 35; ptr->print(); ptr->gets().walk(); C* p1 = dynamic_cast<C*>(ptr); p1->fun().fun(); return 0;}"
+                },
+                {
+                    "Question - 37": "#include <iostream> using namespace std; class D { public: D() { cout << D ctor << endl; } D(D&) { cout << D copy ctor << endl; } ~D() { cout << D dtor << endl; } }; class A { public: A() { cout << A ctor << endl; } ~A() { cout << A dtor << endl; } }; class B : public A { public: B() { cout << B ctor << endl; } ~B() { cout << B dtor << endl; } void test(D d) { A a; } B globalB; int main() { A a; D d; D d2 = d; d = d2; globalB.test(d); return 0;}"
+                },
+                {
+                    "Question - 38": "class A { public: A() { cout << In As constructor << endl; } ~A() { cout << In As destructor << endl; } }; class B : public A { public: B() { cout << In Bs constructor << endl; } ~B() { cout << In Bs destructor << endl; } }; class C : public B { public: C() { cout << In Cs constructor << endl; } ~C() { cout << In Cs destructor << endl; } }; int main() { C x1; C* x2 = new C; return 0;}"
+                },
+                {
+                    "Question - 39": "//------------Question # 5-------------// class A { int a; public: A(): a(0) { cout << A() << endl; } A(int a): a(a) { cout << A(int a) << endl; }"
+                }
+            ]
+        }
+    ]
+}
