@@ -1,4 +1,5 @@
-`import os
+import os
+import re
 import subprocess
 from datetime import datetime
 from typing import Any, Dict, List
@@ -231,13 +232,29 @@ def format_output(result: Dict[str, Any]) -> None:
         console.print("=" * 40)
 
 
+def parse_difficulties(query: str) -> dict:
+    """
+    Parse the query for difficulty instructions.
+    Expected format examples: "3 hard", "2 medium", "5 easy"
+    Returns a dictionary with keys 'hard', 'medium', 'easy' and integer counts.
+    """
+    pattern = r'(\d+)\s*(hard|medium|easy)'
+    matches = re.findall(pattern, query.lower())
+    difficulties = {}
+    for count, level in matches:
+        difficulties[level] = int(count)
+    return difficulties
+
+
 def run_chain(query: str) -> Dict[str, Any]:
     """
     Runs the chain to generate and test C++ code snippets.
     Before invoking the LLM, this function integrates reference code snippets
-    retrieved via RAG for context.
+    retrieved via RAG for context. Also, if difficulty instructions are provided
+    in the query, it appends a DIFFICULTY INSTRUCTIONS section that tells the LLM
+    to generate the specified number of questions at each difficulty level.
 
-    The reference JSON file is chosen based on keywords in the query:
+    The reference JSON file is chosen based on the query's content:
       - If the query mentions "oop" or "object oriented", the OOP file is loaded.
       - If the query mentions "pf" or "programming fundamentals", the PF file is loaded.
 
@@ -250,13 +267,12 @@ def run_chain(query: str) -> Dict[str, Any]:
     global messages
 
     # Determining the JSON file to load based on the query's content.
-    if any(keyword in query.lower()
-           for keyword in ["oop", "object oriented"]):
+    if any(keyword in query.lower() for keyword in ["oop", "object oriented"]):
         json_path = "data/oop.json"
-    elif any(
-        keyword in query.lower()
-        for keyword in ["pf", "programming fundamentals"]
-    ):
+    elif any(keyword in query.lower() for keyword in ["pf", "programming fundamentals"]):
+        json_path = "data/pf.json"
+    else:
+        # Default to PF if no clear indicator is present.
         json_path = "data/pf.json"
 
     ref_text = ""
@@ -285,8 +301,33 @@ def run_chain(query: str) -> Dict[str, Any]:
             "\n\nUse the following reference code snippets for context when generating new questions:\n\n"
             f"{ref_text}"
         )
+    # Add extra instruction if Programming Fundamentals was requested.
+    if rag.file_type == "pf":
+         combined_query += (
+             "\n\nIMPORTANT: The generated C++ code snippet must strictly adhere to Programming Fundamentals principles. "
+             "Avoid using Object-Oriented Programming constructs such as classes, inheritance, virtual functions, operator overloading, and templates. "
+             "Instead, focus on pointer manipulation, manual memory management, loop edge cases, and conditional statement quirks."
+         )
 
-    # Appending the (combined) human query to the message history.
+    # Parse and append difficulty instructions if provided
+    difficulties = parse_difficulties(query)
+    if difficulties:
+        diff_instr = "\n\nDIFFICULTY INSTRUCTIONS:\n"
+        diff_instr += "Generate questions with the following difficulty breakdown:\n"
+        for level in ['hard', 'medium', 'easy']:
+            if level in difficulties:
+                diff_instr += f" - {difficulties[level]} {level} question{'s' if difficulties[level] > 1 else ''}\n"
+        diff_instr += "\nBelow are examples to help you judge the difficulty levels:\n"
+        diff_instr += "\nEasy questions examples:\n"
+        diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nint main()\n{\n    int *a, *b, *c;\n    int x = 800, y = 300;\n    a = &x;\n    b = &y;\n    *a = (*b) - 200;\n    cout<<x<<\" \"<<*a;\n    return 0;\n}\n```\n"
+        diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nint main() {\n    int a = 5;\n    if (a = 0) {\n        cout << \"Zero\" << endl;\n    } else {\n        cout << \"Non-zero\" << endl;\n    }\n    cout << a << endl;\n    return 0;\n}\n```\n"
+        diff_instr += "\nMedium questions examples:\n"
+        diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nvoid find(int a, int &b, int &c, int d)\n{\n    if (d < 1)\n        return;\n    cout << a << \",\" << b << \",\" << c << endl;\n    c = a + 2 * b;\n    int temp = b;\n    b = a;\n    a = 2 * temp;\n    d % 2 ? find(b, a, c, d - 1) : find(c, b, a, d - 1);\n}\n\nint main()\n{\n    int a = 1, b = 2, c = 3, d = 4;\n    find(a, b, c, d);\n    cout << a << \",\" << b << \",\" << c << endl;\n    return 0;\n}\n```\n"
+        diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nint WHAT(int A[], int N) {\n    int ANS = 0;\n    int S = 0;\n    int E = N-1;\n    \n    for(S = 0, E = N-1; S < E; S++, E--) {\n        ANS += A[S] - A[E];\n    }\n    return ANS;\n}\n\nint main() {\n    int A[] = {1, 2, 3, 4, -5, 1, 3, 2, 1};\n    cout << WHAT(A, 7);\n    return 0;\n}\n```\n"
+        diff_instr += "\nHard question example:\n"
+        diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nconst int s = 3;\nint *listMystery(int list[][s])\n{\n    int i = 1, k = 0;\n    int *n = new int[s];\n    for (int i = 0; i < s; ++i)\n        n[i] = 0;\n    while (i < ::s)\n    {\n        int j = ::s - 1;\n        while (j >= i)\n        {\n            n[k++] = list[j][i] * list[i][j];\n            j = j - 1;\n        }\n        i = i + 1;\n    }\n    return n;\n}\nvoid displayMystery(int *arr)\n{\n    cout << \"[ \";\n    for (int i = 0; i < s; ++i)\n        cout << arr[i] << ((i != ::s - 1) ? \", \" : \" \");\n    cout << \"]\" << endl;\n}\nint main()\n{\n    int L[][::s] = {{8, 9, 4}, {2, 3, 4}, {7, 6, 1}};\n    int *ptr = listMystery(L);\n    displayMystery(ptr);\n    delete[] ptr;\n    return 0;\n}\n```\n"
+        combined_query += diff_instr
+
     messages.append(HumanMessage(content=combined_query))
 
     try:
@@ -300,13 +341,10 @@ def run_chain(query: str) -> Dict[str, Any]:
         code_snippets = split_code_snippets(cleaned_content)
         results = []
 
-        # Executing each code snippet and log the results.
+        # Executing each code snippet and logging the results.
         for snippet in code_snippets:
             run_result = cpp_code_runner.invoke({"code": snippet})
-            success = not run_result.startswith(
-                "Program execution failed"
-            ) and not run_result.startswith("Docker build failed")
-
+            success = not run_result.startswith("Program execution failed") and not run_result.startswith("Docker build failed")
             log_cpp_snippet(snippet, run_result, success)
             results.append({"code": snippet, "output": run_result, "success": success})
 
@@ -315,13 +353,10 @@ def run_chain(query: str) -> Dict[str, Any]:
         return {"snippets": results}
 
     except Exception as e:
-        # Printing and returning an empty result in case of errors.
         print(f"\nError: {e}")
         return {"snippets": []}
 
 
-if __name__ == "__main__":
-    query = "Generate 10 tricky C++ code snippets for programming fundamentals"
-    result = run_chain(query)
-    format_output(result)
-`
+query = "Generate 10 hard C++ code snippets for PF"
+result = run_chain(query)
+format_output(result)
