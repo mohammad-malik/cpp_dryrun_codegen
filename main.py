@@ -1,24 +1,30 @@
 import os
 import re
-import subprocess
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-from functools import lru_cache
-import hashlib
 import json
-from json.decoder import JSONDecodeError
+import shutil
+import subprocess
+import hashlib
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
+from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from rich.console import Console
 from rich.syntax import Syntax
 
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain_core.messages import (
+    HumanMessage, 
+    SystemMessage
+)
 from langchain_core.tools import Tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from RAG import CodeEmbeddings
+
 
 
 class Settings(BaseSettings):
@@ -71,6 +77,102 @@ def run_cpp_code(cpp_code: str) -> str:
     return DockerRunner().run_code(cpp_code)
 
 
+class CacheManager:
+    """Manages cache directories and operations."""
+    def __init__(self, base_dir: str = "cache"):
+        self.base_dir = Path(base_dir)
+        self.explanations_dir = self.base_dir / "explanations"
+        self.queries_dir = self.base_dir / "queries"
+        self._init_directories()
+    
+    def _init_directories(self):
+        """Create all required cache directories."""
+        self.base_dir.mkdir(exist_ok=True)
+        self.explanations_dir.mkdir(exist_ok=True)
+        self.queries_dir.mkdir(exist_ok=True)
+    
+    def get_explanation_path(self, cache_key: str) -> Path:
+        """Get path for explanation cache file."""
+        return self.explanations_dir / f"{cache_key}.json"
+    
+    def get_query_path(self, cache_key: str) -> Path:
+        """Get path for query cache file."""
+        return self.queries_dir / f"{cache_key}.json"
+    
+    def clear_cache(self, keep_docker: bool = True) -> None:
+        """Clear all cache directories except Docker-related files."""
+        try:
+            # Clear explanations directory
+            if self.explanations_dir.exists():
+                shutil.rmtree(self.explanations_dir)
+            self.explanations_dir.mkdir(exist_ok=True)
+            
+            # Clear queries directory
+            if self.queries_dir.exists():
+                shutil.rmtree(self.queries_dir)
+            self.queries_dir.mkdir(exist_ok=True)
+            
+        except Exception as e:
+            print(f"Error clearing cache: {e}")
+
+
+class ReportGenerator:
+    """Generates HTML and Markdown reports for quiz results."""
+    def __init__(self, output_dir: str = "output"):
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(exist_ok=True)
+        self.env = Environment(
+            loader=FileSystemLoader("templates"),
+            trim_blocks=True,
+            lstrip_blocks=True
+        )
+    
+    def generate(self, result: Dict[str, Any], query: str) -> tuple[Path, Path]:
+        """Generate both HTML and Markdown reports."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        html_file = self.output_dir / f"quiz_{timestamp}.html"
+        md_file = self.output_dir / f"quiz_{timestamp}.md"
+        
+        # Generate HTML
+        template = self.env.get_template("quiz_report.html")
+        html_content = template.render(
+            query=query,
+            snippets=result.get("snippets", []),
+            timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        )
+        html_file.write_text(html_content)
+        
+        # Generate Markdown
+        md_content = self._generate_markdown(query, result.get("snippets", []))
+        md_file.write_text(md_content)
+        
+        return html_file, md_file
+    
+    def _generate_markdown(self, query: str, snippets: List[Dict[str, Any]]) -> str:
+        """Generate Markdown format report."""
+        md = [
+            f"# C++ Quiz Report\n",
+            f"Query: {query}\n",
+            f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        ]
+        
+        for i, snippet in enumerate(snippets, 1):
+            md.extend([
+                f"## Question {i}\n",
+                "### Code\n```cpp",
+                snippet.get("code", ""),
+                "```\n",
+                "### Output\n```",
+                snippet.get("output", ""),
+                "```\n",
+                "### Explanation\n",
+                snippet.get("explanation", ""),
+                "\n---\n"
+            ])
+        
+        return "\n".join(md)
+
+
 class ExplanationGenerator:
     """Handles code explanation generation with proper context management."""
     def __init__(self, api_key: str):
@@ -79,8 +181,6 @@ class ExplanationGenerator:
             api_key=api_key,
             temperature=0.3,  # Lower temperature for more focused explanations
         )
-        self.cache_dir = "cache/explanations"
-        os.makedirs(self.cache_dir, exist_ok=True)
     
     def _get_cache_key(self, code: str, output: str) -> str:
         """Generate cache key for code and output combination."""
@@ -90,12 +190,15 @@ class ExplanationGenerator:
     def get_explanation(self, code: str, output: str) -> str:
         """Get explanation for code output, using cache if available."""
         cache_key = self._get_cache_key(code, output)
-        cache_file = os.path.join(self.cache_dir, f"{cache_key}.json")
+        cache_file = cache_mgr.get_explanation_path(cache_key)
         
-        # Try to load from cache with safe JSON handling
-        cached_data = safe_json_load(cache_file)
-        if cached_data and 'explanation' in cached_data:
-            return cached_data['explanation']
+        try:
+            if cache_file.exists():
+                cached_data = safe_json_load(str(cache_file))
+                if cached_data and 'explanation' in cached_data:
+                    return cached_data['explanation']
+        except Exception as e:
+            print(f"Cache read error: {e}")
         
         explanation_prompt = f"""Act as a C++ expert. Explain the following code and its output:
 
@@ -118,7 +221,7 @@ Be concise but thorough."""
             explanation = self.llm.invoke(messages).content.strip()
             
             # Cache the explanation with safe JSON handling
-            safe_json_dump({'explanation': explanation}, cache_file)
+            safe_json_dump({'explanation': explanation}, str(cache_file))
             
             return explanation
         except Exception as e:
@@ -151,6 +254,7 @@ def process_snippet(snippet: str) -> Dict[str, Any]:
 # Initializing settings from environment variables.
 # Configuring the Language Model with specified parameters.
 settings = Settings()
+cache_mgr = CacheManager()
 
 # Initialize explanation generator
 explanation_gen = ExplanationGenerator(settings.GOOGLE_API_KEY)
@@ -376,15 +480,16 @@ def safe_json_load(file_path: str) -> Optional[Dict[str, Any]]:
 
 def run_chain(query: str) -> Dict[str, Any]:
     """Optimized version of run_chain."""
-    # Cache key based on query
     cache_key = hashlib.md5(query.encode()).hexdigest()
-    cache_file = f"cache/{cache_key}.json"
+    cache_file = cache_mgr.get_query_path(cache_key)
     
-    # Check cache
-    os.makedirs("cache", exist_ok=True)
-    cached_result = safe_json_load(cache_file)
-    if cached_result:
-        return cached_result
+    try:
+        if cache_file.exists():
+            cached_result = safe_json_load(str(cache_file))
+            if cached_result:
+                return cached_result
+    except Exception as e:
+        print(f"Query cache read error: {e}")
 
     global messages
 
@@ -472,7 +577,14 @@ def run_chain(query: str) -> Dict[str, Any]:
         output = {"snippets": results}
         
         # Cache results with safe JSON handling
-        safe_json_dump(output, cache_file)
+        safe_json_dump(output, str(cache_file))
+
+        # Clean up explanation cache
+        try:
+            shutil.rmtree(cache_mgr.explanations_dir)
+            cache_mgr.explanations_dir.mkdir(exist_ok=True)
+        except Exception as e:
+            print(f"Cache cleanup error: {e}")
 
         return output
 
@@ -481,6 +593,25 @@ def run_chain(query: str) -> Dict[str, Any]:
         return {"snippets": []}
 
 
-query = "Generate 10 hard C++ code snippets for PF"
-result = run_chain(query)
-format_output(result)
+def main():
+    """Main function to run the quiz generator."""
+    # Clear cache before running
+    cache_mgr.clear_cache()
+    
+    query = "Generate 10 hard C++ code snippets for PF"
+    result = run_chain(query)
+    
+    # Generate reports
+    report_gen = ReportGenerator()
+    html_file, md_file = report_gen.generate(result, query)
+    
+    # Display results in terminal
+    format_output(result)
+    
+    # Inform user about report locations
+    print(f"\nReports generated:")
+    print(f"HTML Report: {html_file}")
+    print(f"Markdown Report: {md_file}")
+
+if __name__ == "__main__":
+    main()
