@@ -2,7 +2,12 @@ import os
 import re
 import subprocess
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+from functools import lru_cache
+import hashlib
+import json
+from json.decoder import JSONDecodeError
+from concurrent.futures import ThreadPoolExecutor
 
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -28,37 +33,127 @@ class Settings(BaseSettings):
     )
 
 
+class DockerRunner:
+    """Manages Docker container for running C++ code."""
+    _instance = None
+    _is_built = False
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(DockerRunner, cls).__new__(cls)
+        return cls._instance
+
+    def ensure_image_built(self):
+        """Builds Docker image only if not already built."""
+        if not self._is_built:
+            build_cmd = ["docker", "build", "-t", "cpp-runner", "./run_cpp"]
+            try:
+                subprocess.run(build_cmd, check=True, capture_output=True)
+                self._is_built = True
+            except subprocess.CalledProcessError as e:
+                return f"Docker build failed: {e.stderr.decode().strip()}"
+
+    def run_code(self, cpp_code: str) -> str:
+        """Runs C++ code in the Docker container."""
+        self.ensure_image_built()
+        run_cmd = ["docker", "run", "--rm", "-i", "cpp-runner", "-"]
+        try:
+            result = subprocess.run(
+                run_cmd, input=cpp_code.encode(), capture_output=True, check=True
+            )
+            return result.stdout.decode().strip()
+        except subprocess.CalledProcessError as e:
+            return f"Program execution failed: {e.stderr.decode().strip()}"
+
+
 def run_cpp_code(cpp_code: str) -> str:
-    """
-    Executes C++ code within a Docker container.
+    """Executes C++ code using the DockerRunner singleton."""
+    return DockerRunner().run_code(cpp_code)
 
-    Args:
-        cpp_code (str): The C++ code to execute.
 
-    Returns:
-        str: The output of the program or an error message.
-    """
-    # Command that builds the Docker image for running C++ code
-    build_cmd = ["docker", "build", "-t", "cpp-runner", "./run_cpp"]
-    try:
-        subprocess.run(build_cmd, check=True, capture_output=True)
-    except subprocess.CalledProcessError as e:
-        return f"Docker build failed: {e.stderr.decode().strip()}"
-
-    # Command to run the Docker container and execute the C++ code
-    run_cmd = ["docker", "run", "--rm", "-i", "cpp-runner", "-"]
-    try:
-        result = subprocess.run(
-            run_cmd, input=cpp_code.encode(), capture_output=True, check=True
+class ExplanationGenerator:
+    """Handles code explanation generation with proper context management."""
+    def __init__(self, api_key: str):
+        self.llm = ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash",  # Regular Flash model for explanations
+            api_key=api_key,
+            temperature=0.3,  # Lower temperature for more focused explanations
         )
-        return result.stdout.decode().strip()
-    except subprocess.CalledProcessError as e:
-        return f"Program execution failed: {e.stderr.decode().strip()}"
+        self.cache_dir = "cache/explanations"
+        os.makedirs(self.cache_dir, exist_ok=True)
+    
+    def _get_cache_key(self, code: str, output: str) -> str:
+        """Generate cache key for code and output combination."""
+        combined = f"{code}{output}".encode()
+        return hashlib.md5(combined).hexdigest()
+    
+    def get_explanation(self, code: str, output: str) -> str:
+        """Get explanation for code output, using cache if available."""
+        cache_key = self._get_cache_key(code, output)
+        cache_file = os.path.join(self.cache_dir, f"{cache_key}.json")
+        
+        # Try to load from cache with safe JSON handling
+        cached_data = safe_json_load(cache_file)
+        if cached_data and 'explanation' in cached_data:
+            return cached_data['explanation']
+        
+        explanation_prompt = f"""Act as a C++ expert. Explain the following code and its output:
+
+CODE:
+{code}
+
+ACTUAL OUTPUT:
+{output}
+
+Provide a technical explanation for why this code produces exactly this output.
+Focus on key concepts, memory behavior, and any tricky aspects.
+Be concise but thorough."""
+
+        try:
+            messages = [
+                SystemMessage(content="You are a C++ expert. Explain code behavior accurately and technically."),
+                HumanMessage(content=explanation_prompt)
+            ]
+            
+            explanation = self.llm.invoke(messages).content.strip()
+            
+            # Cache the explanation with safe JSON handling
+            safe_json_dump({'explanation': explanation}, cache_file)
+            
+            return explanation
+        except Exception as e:
+            return f"Error generating explanation: {str(e)}"
+
+
+@lru_cache(maxsize=100)
+def get_explanation(code: str, output: str) -> str:
+    """Get explanation using the ExplanationGenerator."""
+    return explanation_gen.get_explanation(code, output)
+
+
+def process_snippet(snippet: str) -> Dict[str, Any]:
+    """Process a single code snippet and return results."""
+    run_result = cpp_code_runner.invoke({"code": snippet})
+    success = not (run_result.startswith("Program execution failed") or 
+                  run_result.startswith("Docker build failed"))
+    
+    explanation = get_explanation(snippet, run_result)
+    
+    log_cpp_snippet(snippet, run_result, success)
+    return {
+        "code": snippet,
+        "output": run_result,
+        "success": success,
+        "explanation": explanation
+    }
 
 
 # Initializing settings from environment variables.
 # Configuring the Language Model with specified parameters.
 settings = Settings()
+
+# Initialize explanation generator
+explanation_gen = ExplanationGenerator(settings.GOOGLE_API_KEY)
 
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.0-flash-thinking-exp-01-21",
@@ -98,11 +193,16 @@ SYSTEM_PROMPT = """You are an expert C++ quiz generator. Follow these strict rul
     * sizeof() and datatype size edge cases
     * Order of operations (e.g., x++ + x++)
     * Conditional statement edge cases (if(x=0), switch fallthrough)
+    * Bitwise operations
+    * Array and pointer arithmetic
+
+    * Recursion edge cases (IF OOP)
     * Operator overloading (IF OOP)
     * Complex templates (IF OOP)
     * Virtual functions (IF OOP)
     * Multiple inheritance (IF OOP)
 
+4. Each snippet should have the following characteristics:
    - Be complete and compilable, or intentionally broken
    - Broken code should illustrate a concept.
    - If a snippet has compilation errors, and it is intentional, keep it, otherwise fix it.
@@ -111,12 +211,10 @@ SYSTEM_PROMPT = """You are an expert C++ quiz generator. Follow these strict rul
    - Have deterministic output (even if undefined behavior is predictable)
    - Do not add helpful comments. Make the code confusing.
 
-3. For each snippet, follow this format:
+5. For each snippet, follow this format:
    ```cpp
    // Question #N
    [code here]
-   // Expected Output: [output]
-   // Explanation: [brief explanation]
    ```
 """
 
@@ -229,6 +327,11 @@ def format_output(result: Dict[str, Any]) -> None:
         # Format output
         console.print("\n[bold]Output:[/bold]")
         console.print(snippet.get("output", ""))
+        
+        if snippet.get("explanation"):
+            console.print("\n[bold]Explanation:[/bold]")
+            console.print(snippet.get("explanation"))
+        
         console.print("=" * 40)
 
 
@@ -246,31 +349,54 @@ def parse_difficulties(query: str) -> dict:
     return difficulties
 
 
+class JSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder to handle non-serializable objects."""
+    def default(self, obj):
+        try:
+            return super().default(obj)
+        except TypeError:
+            return str(obj)
+
+def safe_json_dump(data: Dict[str, Any], file_path: str) -> None:
+    """Safely dump data to JSON file with proper encoding."""
+    try:
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, cls=JSONEncoder, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"Error saving cache: {e}")
+
+def safe_json_load(file_path: str) -> Optional[Dict[str, Any]]:
+    """Safely load JSON data from file."""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (JSONDecodeError, FileNotFoundError, Exception) as e:
+        print(f"Error loading cache: {e}")
+        return None
+
 def run_chain(query: str) -> Dict[str, Any]:
-    """
-    Runs the chain to generate and test C++ code snippets.
-    Before invoking the LLM, this function integrates reference code snippets
-    retrieved via RAG for context. Also, if difficulty instructions are provided
-    in the query, it appends a DIFFICULTY INSTRUCTIONS section that tells the LLM
-    to generate the specified number of questions at each difficulty level.
+    """Optimized version of run_chain."""
+    # Cache key based on query
+    cache_key = hashlib.md5(query.encode()).hexdigest()
+    cache_file = f"cache/{cache_key}.json"
+    
+    # Check cache
+    os.makedirs("cache", exist_ok=True)
+    cached_result = safe_json_load(cache_file)
+    if cached_result:
+        return cached_result
 
-    The reference JSON file is chosen based on the query's content:
-      - If the query mentions "oop" or "object oriented", the OOP file is loaded.
-      - If the query mentions "pf" or "programming fundamentals", the PF file is loaded.
-
-    Args:
-        query (str): The user query to generate code snippets.
-
-    Returns:
-        Dict[str, Any]: A dictionary containing the snippets and their results.
-    """
     global messages
 
     # Determining the JSON file to load based on the query's content.
-    if any(keyword in query.lower() for keyword in ["oop", "object oriented"]):
+    if any(keyword in query.lower()
+           for keyword in ["oop", "object oriented"]):
         json_path = "data/oop.json"
-    elif any(keyword in query.lower() for keyword in ["pf", "programming fundamentals"]):
+
+    elif any(keyword in query.lower()
+             for keyword in ["pf", "programming fundamentals"]):
         json_path = "data/pf.json"
+
     else:
         # Default to PF if no clear indicator is present.
         json_path = "data/pf.json"
@@ -331,26 +457,24 @@ def run_chain(query: str) -> Dict[str, Any]:
     messages.append(HumanMessage(content=combined_query))
 
     try:
-        # Invoking the LLM with the current message history.
+        # Get initial response with code snippets
         response = llm.invoke(messages)
         if not response or not response.content:
             raise ValueError("Empty response from LLM")
 
-        # Cleaning and split the LLM response into individual code snippets.
         cleaned_content = clean_code_snippet(response.content)
         code_snippets = split_code_snippets(cleaned_content)
-        results = []
+        
+        # Process snippets in parallel
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            results = list(executor.map(process_snippet, code_snippets))
 
-        # Executing each code snippet and logging the results.
-        for snippet in code_snippets:
-            run_result = cpp_code_runner.invoke({"code": snippet})
-            success = not run_result.startswith("Program execution failed") and not run_result.startswith("Docker build failed")
-            log_cpp_snippet(snippet, run_result, success)
-            results.append({"code": snippet, "output": run_result, "success": success})
+        output = {"snippets": results}
+        
+        # Cache results with safe JSON handling
+        safe_json_dump(output, cache_file)
 
-        # Appending the AI's response to the message history.
-        messages.append(AIMessage(content=response.content))
-        return {"snippets": results}
+        return output
 
     except Exception as e:
         print(f"\nError: {e}")
