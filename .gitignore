@@ -3,3 +3,4 @@
 cache/*
 output/*
 logs/*
+__pycache__/*

@@ -15,6 +15,10 @@ from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from rich.console import Console
 from rich.syntax import Syntax
+from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+from rich.live import Live
+from rich.panel import Panel
+from rich import print as rprint
 
 from langchain_core.messages import (
     HumanMessage, 
@@ -234,21 +238,76 @@ def get_explanation(code: str, output: str) -> str:
     return explanation_gen.get_explanation(code, output)
 
 
-def process_snippet(snippet: str) -> Dict[str, Any]:
-    """Process a single code snippet and return results."""
-    run_result = cpp_code_runner.invoke({"code": snippet})
-    success = not (run_result.startswith("Program execution failed") or 
-                  run_result.startswith("Docker build failed"))
+class BatchProcessor:
+    """Handles batch processing of code snippets and explanations."""
+    def __init__(self, batch_size: int = 4):
+        self.batch_size = batch_size
+        self.docker_runner = DockerRunner()
     
-    explanation = get_explanation(snippet, run_result)
+    def process_batch(self, snippets: List[str]) -> List[Dict[str, Any]]:
+        """Process a batch of snippets together."""
+        results = []
+        
+        progress_mgr.update_status("Running C++ code snippets...")
+        # Process code execution in parallel
+        with ThreadPoolExecutor(max_workers=self.batch_size) as executor:
+            futures = []
+            for i, snippet in enumerate(snippets, 1):
+                progress_mgr.update_status(f"Running snippet {i}/{len(snippets)}...")
+                futures.append(executor.submit(self.docker_runner.run_code, snippet))
+            
+            outputs = [f.result() for f in futures]
+        
+        progress_mgr.update_status("Generating explanations...")
+        explanations = self._batch_generate_explanations(snippets, outputs)
+        
+        # Combine results
+        progress_mgr.update_status("Preparing results...")
+        for snippet, output, explanation in zip(snippets, outputs, explanations):
+            success = not (output.startswith("Program execution failed") or 
+                         output.startswith("Docker build failed"))
+            results.append({
+                "code": snippet,
+                "output": output,
+                "success": success,
+                "explanation": explanation
+            })
+        
+        return results
     
-    log_cpp_snippet(snippet, run_result, success)
-    return {
-        "code": snippet,
-        "output": run_result,
-        "success": success,
-        "explanation": explanation
-    }
+    def _batch_generate_explanations(self, snippets: List[str], outputs: List[str]) -> List[str]:
+        """Generate explanations for multiple snippets in one LLM call."""
+        combined_prompt = "Explain each of these C++ code snippets and their outputs:\n\n"
+        for i, (code, output) in enumerate(zip(snippets, outputs), 1):
+            combined_prompt += f"SNIPPET {i}:\n{code}\nOUTPUT:\n{output}\n\n"
+        
+        try:
+            messages = [
+                SystemMessage(content="You are a C++ expert. For each snippet, provide a technical explanation focusing on key concepts and behavior."),
+                HumanMessage(content=combined_prompt)
+            ]
+            
+            response = explanation_gen.llm.invoke(messages)
+            # Split response into individual explanations
+            explanations = self._split_explanations(response.content, len(snippets))
+            return explanations
+        except Exception as e:
+            return [f"Error generating explanation: {str(e)}"] * len(snippets)
+    
+    def _split_explanations(self, content: str, expected_count: int) -> List[str]:
+        """Split combined explanation into individual ones."""
+        parts = re.split(r'SNIPPET \d+:|EXPLANATION \d+:', content)
+        parts = [p.strip() for p in parts if p.strip()]
+        if len(parts) == expected_count:
+            return parts
+        # Fallback: split evenly
+        return [content] * expected_count
+
+
+def process_snippets(code_snippets: List[str]) -> List[Dict[str, Any]]:
+    """Process multiple snippets efficiently."""
+    batch_processor = BatchProcessor()
+    return batch_processor.process_batch(code_snippets)
 
 
 # Initializing settings from environment variables.
@@ -263,6 +322,8 @@ llm = ChatGoogleGenerativeAI(
     model="gemini-2.0-flash-thinking-exp-01-21",
     api_key=settings.GOOGLE_API_KEY,
     temperature=1.0,
+    timeout=30,  # Add timeout
+    retry_on_failure=True  # Add retry
 )
 
 
@@ -478,140 +539,199 @@ def safe_json_load(file_path: str) -> Optional[Dict[str, Any]]:
         print(f"Error loading cache: {e}")
         return None
 
+class ProgressManager:
+    """Manages progress indicators and status updates."""
+    def __init__(self):
+        self.progress = Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            TimeElapsedColumn(),
+            transient=True
+        )
+        self.current_task = None
+    
+    def update_status(self, message: str, complete_previous: bool = True) -> None:
+        """Update current status message."""
+        if self.current_task and complete_previous:
+            self.progress.remove_task(self.current_task)
+            self.current_task = None
+        
+        if not self.current_task:
+            self.current_task = self.progress.add_task(message)
+        else:
+            self.progress.update(self.current_task, description=message)
+
+    def complete_task(self) -> None:
+        """Mark current task as complete and remove it."""
+        if self.current_task:
+            self.progress.remove_task(self.current_task)
+            self.current_task = None
+    
+    def __enter__(self):
+        self.progress.start()
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.current_task:
+            self.complete_task()
+        self.progress.stop()
+
+
+progress_mgr = ProgressManager()
+
 def run_chain(query: str) -> Dict[str, Any]:
     """Optimized version of run_chain."""
-    cache_key = hashlib.md5(query.encode()).hexdigest()
-    cache_file = cache_mgr.get_query_path(cache_key)
-    
-    try:
-        if cache_file.exists():
-            cached_result = safe_json_load(str(cache_file))
-            if cached_result:
-                return cached_result
-    except Exception as e:
-        print(f"Query cache read error: {e}")
-
-    global messages
-
-    # Determining the JSON file to load based on the query's content.
-    if any(keyword in query.lower()
-           for keyword in ["oop", "object oriented"]):
-        json_path = "data/oop.json"
-
-    elif any(keyword in query.lower()
-             for keyword in ["pf", "programming fundamentals"]):
-        json_path = "data/pf.json"
-
-    else:
-        # Default to PF if no clear indicator is present.
-        json_path = "data/pf.json"
-
-    ref_text = ""
-    try:
-        rag = CodeEmbeddings()
-        # Loading the JSON file containing reference code snippets.
-        rag.load_json(json_path)
-        # Searching for references matching the user query.
-        references = rag.search(query, k=3)
-        ref_lines = []
-        for i, ref in enumerate(references):
-            if rag.file_type == "oop":
-                ref_lines.append(f"Reference {i+1} (Question):\n{ref['question']}")
-            else:
-                ref_lines.append(
-                    f"Reference {i+1} (Context: {ref['context']}):\n{ref['code']}"
-                )
-        ref_text = "\n\n".join(ref_lines)
-    except Exception as e:
-        print(f"RAG integration error: {e}")
-
-    # Combining the original query with the reference snippets (if any).
-    combined_query = query
-    if ref_text:
-        combined_query += (
-            "\n\nUse the following reference code snippets for context when generating new questions:\n\n"
-            f"{ref_text}"
-        )
-    # Add extra instruction if Programming Fundamentals was requested.
-    if rag.file_type == "pf":
-         combined_query += (
-             "\n\nIMPORTANT: The generated C++ code snippet must strictly adhere to Programming Fundamentals principles. "
-             "Avoid using Object-Oriented Programming constructs such as classes, inheritance, virtual functions, operator overloading, and templates. "
-             "Instead, focus on pointer manipulation, manual memory management, loop edge cases, and conditional statement quirks."
-         )
-
-    # Parse and append difficulty instructions if provided
-    difficulties = parse_difficulties(query)
-    if difficulties:
-        diff_instr = "\n\nDIFFICULTY INSTRUCTIONS:\n"
-        diff_instr += "Generate questions with the following difficulty breakdown:\n"
-        for level in ['hard', 'medium', 'easy']:
-            if level in difficulties:
-                diff_instr += f" - {difficulties[level]} {level} question{'s' if difficulties[level] > 1 else ''}\n"
-        diff_instr += "\nBelow are examples to help you judge the difficulty levels:\n"
-        diff_instr += "\nEasy questions examples:\n"
-        diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nint main()\n{\n    int *a, *b, *c;\n    int x = 800, y = 300;\n    a = &x;\n    b = &y;\n    *a = (*b) - 200;\n    cout<<x<<\" \"<<*a;\n    return 0;\n}\n```\n"
-        diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nint main() {\n    int a = 5;\n    if (a = 0) {\n        cout << \"Zero\" << endl;\n    } else {\n        cout << \"Non-zero\" << endl;\n    }\n    cout << a << endl;\n    return 0;\n}\n```\n"
-        diff_instr += "\nMedium questions examples:\n"
-        diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nvoid find(int a, int &b, int &c, int d)\n{\n    if (d < 1)\n        return;\n    cout << a << \",\" << b << \",\" << c << endl;\n    c = a + 2 * b;\n    int temp = b;\n    b = a;\n    a = 2 * temp;\n    d % 2 ? find(b, a, c, d - 1) : find(c, b, a, d - 1);\n}\n\nint main()\n{\n    int a = 1, b = 2, c = 3, d = 4;\n    find(a, b, c, d);\n    cout << a << \",\" << b << \",\" << c << endl;\n    return 0;\n}\n```\n"
-        diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nint WHAT(int A[], int N) {\n    int ANS = 0;\n    int S = 0;\n    int E = N-1;\n    \n    for(S = 0, E = N-1; S < E; S++, E--) {\n        ANS += A[S] - A[E];\n    }\n    return ANS;\n}\n\nint main() {\n    int A[] = {1, 2, 3, 4, -5, 1, 3, 2, 1};\n    cout << WHAT(A, 7);\n    return 0;\n}\n```\n"
-        diff_instr += "\nHard question example:\n"
-        diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nconst int s = 3;\nint *listMystery(int list[][s])\n{\n    int i = 1, k = 0;\n    int *n = new int[s];\n    for (int i = 0; i < s; ++i)\n        n[i] = 0;\n    while (i < ::s)\n    {\n        int j = ::s - 1;\n        while (j >= i)\n        {\n            n[k++] = list[j][i] * list[i][j];\n            j = j - 1;\n        }\n        i = i + 1;\n    }\n    return n;\n}\nvoid displayMystery(int *arr)\n{\n    cout << \"[ \";\n    for (int i = 0; i < s; ++i)\n        cout << arr[i] << ((i != ::s - 1) ? \", \" : \" \");\n    cout << \"]\" << endl;\n}\nint main()\n{\n    int L[][::s] = {{8, 9, 4}, {2, 3, 4}, {7, 6, 1}};\n    int *ptr = listMystery(L);\n    displayMystery(ptr);\n    delete[] ptr;\n    return 0;\n}\n```\n"
-        combined_query += diff_instr
-
-    messages.append(HumanMessage(content=combined_query))
-
-    try:
-        # Get initial response with code snippets
-        response = llm.invoke(messages)
-        if not response or not response.content:
-            raise ValueError("Empty response from LLM")
-
-        cleaned_content = clean_code_snippet(response.content)
-        code_snippets = split_code_snippets(cleaned_content)
+    with progress_mgr:
+        progress_mgr.update_status("Checking cache...")
+        cache_key = hashlib.md5(query.encode()).hexdigest()
+        cache_file = cache_mgr.get_query_path(cache_key)
         
-        # Process snippets in parallel
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            results = list(executor.map(process_snippet, code_snippets))
-
-        output = {"snippets": results}
-        
-        # Cache results with safe JSON handling
-        safe_json_dump(output, str(cache_file))
-
-        # Clean up explanation cache
         try:
-            shutil.rmtree(cache_mgr.explanations_dir)
-            cache_mgr.explanations_dir.mkdir(exist_ok=True)
+            if cache_file.exists():
+                cached_result = safe_json_load(str(cache_file))
+                if cached_result:
+                    return cached_result
         except Exception as e:
-            print(f"Cache cleanup error: {e}")
+            print(f"Query cache read error: {e}")
 
-        return output
+        progress_mgr.update_status("Loading reference examples...")
+        # Determining the JSON file to load based on the query's content.
+        if any(keyword in query.lower()
+               for keyword in ["oop", "object oriented"]):
+            json_path = "data/oop.json"
 
-    except Exception as e:
-        print(f"\nError: {e}")
-        return {"snippets": []}
+        elif any(keyword in query.lower()
+                 for keyword in ["pf", "programming fundamentals"]):
+            json_path = "data/pf.json"
+
+        else:
+            # Default to PF if no clear indicator is present.
+            json_path = "data/pf.json"
+
+        ref_text = ""
+        try:
+            rag = CodeEmbeddings()
+            # Loading the JSON file containing reference code snippets.
+            rag.load_json(json_path)
+            # Searching for references matching the user query.
+            references = rag.search(query, k=3)
+            ref_lines = []
+            for i, ref in enumerate(references):
+                if rag.file_type == "oop":
+                    ref_lines.append(f"Reference {i+1} (Question):\n{ref['question']}")
+                else:
+                    ref_lines.append(
+                        f"Reference {i+1} (Context: {ref['context']}):\n{ref['code']}"
+                    )
+            ref_text = "\n\n".join(ref_lines)
+        except Exception as e:
+            print(f"RAG integration error: {e}")
+
+        # Combining the original query with the reference snippets (if any).
+        combined_query = query
+        if ref_text:
+            combined_query += (
+                "\n\nUse the following reference code snippets for context when generating new questions:\n\n"
+                f"{ref_text}"
+            )
+        # Extra instruction if Programming Fundamentals was requested.
+        if rag.file_type == "pf":
+             combined_query += (
+                 "\n\nIMPORTANT: The generated C++ code snippet must strictly adhere to Programming Fundamentals principles. "
+                 "Avoid using Object-Oriented Programming constructs such as classes, inheritance, virtual functions, operator overloading, and templates. "
+                 "Instead, focus on pointer manipulation, manual memory management, loop edge cases, and conditional statement quirks."
+             )
+        # Extra instructions if OOP was requested.
+        if rag.file_type == "pf":
+             combined_query += (
+                 "\n\nIMPORTANT: The generated C++ code snippet must strictly adhere to Object-Oriented Programming principles. "
+                "Focus on classes, constructor and destructor calls, shallow, deep copies, inheritance, operator overloading. "
+                "Mix in manual memory management, pointer manipulation, and other low-level constructs."
+                )
+
+        # Parse and append difficulty instructions if provided
+        difficulties = parse_difficulties(query)
+        if difficulties:
+            diff_instr = "\n\nDIFFICULTY INSTRUCTIONS:\n"
+            diff_instr += "Generate questions with the following difficulty breakdown:\n"
+            for level in ['hard', 'medium', 'easy']:
+                if level in difficulties:
+                    diff_instr += f" - {difficulties[level]} {level} question{'s' if difficulties[level] > 1 else ''}\n"
+            diff_instr += "\nBelow are examples to help you judge the difficulty levels:\n"
+            diff_instr += "\nEasy questions examples:\n"
+            diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nint main()\n{\n    int *a, *b, *c;\n    int x = 800, y = 300;\n    a = &x;\n    b = &y;\n    *a = (*b) - 200;\n    cout<<x<<\" \"<<*a;\n    return 0;\n}\n```\n"
+            diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nint main() {\n    int a = 5;\n    if (a = 0) {\n        cout << \"Zero\" << endl;\n    } else {\n        cout << \"Non-zero\" << endl;\n    }\n    cout << a << endl;\n    return 0;\n}\n```\n"
+            diff_instr += "\nMedium questions examples:\n"
+            diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nvoid find(int a, int &b, int &c, int d)\n{\n    if (d < 1)\n        return;\n    cout << a << \",\" << b << \",\" << c << endl;\n    c = a + 2 * b;\n    int temp = b;\n    b = a;\n    a = 2 * temp;\n    d % 2 ? find(b, a, c, d - 1) : find(c, b, a, d - 1);\n}\n\nint main()\n{\n    int a = 1, b = 2, c = 3, d = 4;\n    find(a, b, c, d);\n    cout << a << \",\" << b << \",\" << c << endl;\n    return 0;\n}\n```\n"
+            diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nint WHAT(int A[], int N) {\n    int ANS = 0;\n    int S = 0;\n    int E = N-1;\n    \n    for(S = 0, E = N-1; S < E; S++, E--) {\n        ANS += A[S] - A[E];\n    }\n    return ANS;\n}\n\nint main() {\n    int A[] = {1, 2, 3, 4, -5, 1, 3, 2, 1};\n    cout << WHAT(A, 7);\n    return 0;\n}\n```\n"
+            diff_instr += "\nHard question example:\n"
+            diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nconst int s = 3;\nint *listMystery(int list[][s])\n{\n    int i = 1, k = 0;\n    int *n = new int[s];\n    for (int i = 0; i < s; ++i)\n        n[i] = 0;\n    while (i < ::s)\n    {\n        int j = ::s - 1;\n        while (j >= i)\n        {\n            n[k++] = list[j][i] * list[i][j];\n            j = j - 1;\n        }\n        i = i + 1;\n    }\n    return n;\n}\nvoid displayMystery(int *arr)\n{\n    cout << \"[ \";\n    for (int i = 0; i < s; ++i)\n        cout << arr[i] << ((i != ::s - 1) ? \", \" : \" \");\n    cout << \"]\" << endl;\n}\nint main()\n{\n    int L[][::s] = {{8, 9, 4}, {2, 3, 4}, {7, 6, 1}};\n    int *ptr = listMystery(L);\n    displayMystery(ptr);\n    delete[] ptr;\n    return 0;\n}\n```\n"
+            combined_query += diff_instr
+
+        messages.append(HumanMessage(content=combined_query))
+
+        try:
+            progress_mgr.update_status("Generating code snippets...")
+            # Get initial response with code snippets
+            response = llm.invoke(messages)
+            if not response or not response.content:
+                raise ValueError("Empty response from LLM")
+
+            progress_mgr.update_status("Processing code snippets...")
+            cleaned_content = clean_code_snippet(response.content)
+            code_snippets = split_code_snippets(cleaned_content)
+            
+            # Process snippets
+            results = process_snippets(code_snippets)
+            
+            progress_mgr.update_status("Caching results...")
+            output = {"snippets": results}
+            safe_json_dump(output, str(cache_file))
+            
+            progress_mgr.update_status("Cleaning up...")
+            try:
+                shutil.rmtree(cache_mgr.explanations_dir)
+                cache_mgr.explanations_dir.mkdir(exist_ok=True)
+            except Exception as e:
+                print(f"Cache cleanup error: {e}")
+            
+            return output
+
+        except Exception as e:
+            print(f"\nError: {e}")
+            return {"snippets": []}
 
 
 def main():
     """Main function to run the quiz generator."""
-    # Clear cache before running
-    cache_mgr.clear_cache()
+    rprint("\n[bold cyan]C++ Quiz Generator[/bold cyan]")
+    rprint("=" * 40)
     
-    query = "Generate 10 hard C++ code snippets for PF"
-    result = run_chain(query)
+    with progress_mgr:
+        # Initialize with clear sequence
+        progress_mgr.update_status("Initializing environment...")
+        cache_mgr.clear_cache()
+        progress_mgr.complete_task()
+        
+        progress_mgr.update_status("Setting up quiz parameters...")
+        query = "Generate 10 hard difficulty C++ code snippets for PF"
+        progress_mgr.complete_task()
+        
+        progress_mgr.update_status("Generating quiz questions...")
+        result = run_chain(query)
+        progress_mgr.complete_task()
+        
+        progress_mgr.update_status("Creating output reports...")
+        report_gen = ReportGenerator()
+        html_file, md_file = report_gen.generate(result, query)
+        progress_mgr.complete_task()
     
-    # Generate reports
-    report_gen = ReportGenerator()
-    html_file, md_file = report_gen.generate(result, query)
-    
-    # Display results in terminal
+    # Display results
     format_output(result)
     
-    # Inform user about report locations
-    print(f"\nReports generated:")
-    print(f"HTML Report: {html_file}")
-    print(f"Markdown Report: {md_file}")
+    rprint("\n[bold green]Reports generated successfully![/bold green]")
+    rprint(f"HTML Report: [blue]{html_file}[/blue]")
+    rprint(f"Markdown Report: [blue]{md_file}[/blue]")
 
 if __name__ == "__main__":
     main()
