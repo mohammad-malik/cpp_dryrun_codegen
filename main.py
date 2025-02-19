@@ -9,6 +9,8 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import atexit
+import markdown2
 
 from jinja2 import Environment, FileSystemLoader
 from pydantic import BaseModel, Field
@@ -119,6 +121,14 @@ class CacheManager:
         except Exception as e:
             print(f"Error clearing cache: {e}")
 
+    def cleanup(self) -> None:
+        """Completely remove cache directory."""
+        try:
+            if self.base_dir.exists():
+                shutil.rmtree(self.base_dir)
+        except Exception as e:
+            print(f"Error cleaning up cache: {e}")
+
 
 class ReportGenerator:
     """Generates HTML and Markdown reports for quiz results."""
@@ -137,18 +147,20 @@ class ReportGenerator:
         html_file = self.output_dir / f"quiz_{timestamp}.html"
         md_file = self.output_dir / f"quiz_{timestamp}.md"
         
-        # Generate HTML
-        template = self.env.get_template("quiz_report.html")
-        html_content = template.render(
-            query=query,
-            snippets=result.get("snippets", []),
-            timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        )
-        html_file.write_text(html_content)
-        
-        # Generate Markdown
+        # First generate markdown
         md_content = self._generate_markdown(query, result.get("snippets", []))
         md_file.write_text(md_content)
+        
+        # Convert markdown to HTML and embed in template
+        html_body = markdown2.markdown(
+            md_content,
+            extras=['fenced-code-blocks', 'code-friendly']
+        )
+        
+        # Generate final HTML 
+        template = self.env.get_template("quiz_report.html")
+        html_content = template.render(content=html_body)
+        html_file.write_text(html_content)
         
         return html_file, md_file
     
@@ -161,6 +173,11 @@ class ReportGenerator:
         ]
         
         for i, snippet in enumerate(snippets, 1):
+            explanation = snippet.get("explanation", "").strip()
+            formatted_explanation = "\n\n".join(p.strip() for p in explanation.split('\n') if p.strip())
+            # Escape asterisks in the regex pattern
+            formatted_explanation = re.sub(r'\*\*Explanation:\*\*', '', formatted_explanation)
+            
             md.extend([
                 f"## Question {i}\n",
                 "### Code\n```cpp",
@@ -170,7 +187,7 @@ class ReportGenerator:
                 snippet.get("output", ""),
                 "```\n",
                 "### Explanation\n",
-                snippet.get("explanation", ""),
+                formatted_explanation,
                 "\n---\n"
             ])
         
@@ -209,16 +226,16 @@ class ExplanationGenerator:
 CODE:
 {code}
 
-ACTUAL OUTPUT:
+OUTPUT:
 {output}
 
 Provide a technical explanation for why this code produces exactly this output.
 Focus on key concepts, memory behavior, and any tricky aspects.
-Be concise but thorough."""
+Be concise but thorough. Do not miss anything, but note that the user is a student preparing for an exam, and is already familiar with C++."""
 
         try:
             messages = [
-                SystemMessage(content="You are a C++ expert. Explain code behavior accurately and technically."),
+                SystemMessage(content="You are a C++ expert. Explain code behavior accurately and technically, yet concisely."),
                 HumanMessage(content=explanation_prompt)
             ]
             
@@ -277,31 +294,41 @@ class BatchProcessor:
     
     def _batch_generate_explanations(self, snippets: List[str], outputs: List[str]) -> List[str]:
         """Generate explanations for multiple snippets in one LLM call."""
-        combined_prompt = "Explain each of these C++ code snippets and their outputs:\n\n"
-        for i, (code, output) in enumerate(zip(snippets, outputs), 1):
-            combined_prompt += f"SNIPPET {i}:\n{code}\nOUTPUT:\n{output}\n\n"
+        all_explanations = []
         
-        try:
-            messages = [
-                SystemMessage(content="You are a C++ expert. For each snippet, provide a technical explanation focusing on key concepts and behavior."),
-                HumanMessage(content=combined_prompt)
-            ]
-            
-            response = explanation_gen.llm.invoke(messages)
-            # Split response into individual explanations
-            explanations = self._split_explanations(response.content, len(snippets))
-            return explanations
-        except Exception as e:
-            return [f"Error generating explanation: {str(e)}"] * len(snippets)
-    
-    def _split_explanations(self, content: str, expected_count: int) -> List[str]:
-        """Split combined explanation into individual ones."""
-        parts = re.split(r'SNIPPET \d+:|EXPLANATION \d+:', content)
-        parts = [p.strip() for p in parts if p.strip()]
-        if len(parts) == expected_count:
-            return parts
-        # Fallback: split evenly
-        return [content] * expected_count
+        # Process each snippet individually to avoid cross-contamination
+        for i, (code, output) in enumerate(zip(snippets, outputs), 1):
+            explanation_prompt = f"""Act as a C++ expert. Analyze this specific code snippet and its output:
+
+CODE:
+{code}
+
+OUTPUT:
+{output}
+
+Provide a focused technical explanation for this specific snippet.
+Focus on key concepts, memory behavior, and any tricky aspects.
+Keep your explanation specific to this code only."""
+
+            try:
+                messages = [
+                    SystemMessage(content="You are a C++ expert. Explain code behavior accurately and technically."),
+                    HumanMessage(content=explanation_prompt)
+                ]
+                
+                response = explanation_gen.llm.invoke(messages)
+                explanation = response.content.strip()
+                
+                # Clean up the explanation
+                explanation = re.sub(r'```[^`]*```', '', explanation)  # Remove code blocks
+                explanation = re.sub(r'CODE:|OUTPUT:|EXPLANATION:', '', explanation)  # Remove headers
+                explanation = '\n'.join(line.strip() for line in explanation.split('\n') if line.strip())
+                
+                all_explanations.append(explanation)
+            except Exception as e:
+                all_explanations.append(f"Error generating explanation: {str(e)}")
+        
+        return all_explanations
 
 
 def process_snippets(code_snippets: List[str]) -> List[Dict[str, Any]]:
@@ -371,15 +398,18 @@ SYSTEM_PROMPT = """You are an expert C++ quiz generator. Follow these strict rul
    - Be complete and compilable, or intentionally broken
    - Broken code should illustrate a concept.
    - If a snippet has compilation errors, and it is intentional, keep it, otherwise fix it.
-   - Include only iostream, string, fstream
-   - Include 'using namespace std;'
+   - Include only iostream, string, fstream headers, avoid STL. Also, use namespace std.
    - Have deterministic output (even if undefined behavior is predictable)
    - Do not add helpful comments. Make the code confusing.
 
 5. For each snippet, follow this format:
    ```cpp
    // Question #N
-   [code here]
+    #include <iostream>
+    [any other includes here]
+    using namespace std;
+    
+    [code here]
    ```
 """
 
@@ -491,27 +521,28 @@ def format_output(result: Dict[str, Any]) -> None:
 
         # Format output
         console.print("\n[bold]Output:[/bold]")
-        console.print(snippet.get("output", ""))
+        console.print(Panel(
+            snippet.get("output", ""),
+            border_style="blue",
+            expand=False
+        ))
         
         if snippet.get("explanation"):
             console.print("\n[bold]Explanation:[/bold]")
-            console.print(snippet.get("explanation"))
+            # Split explanation into paragraphs and format them
+            explanation = snippet.get("explanation", "").strip()
+            paragraphs = [p.strip() for p in explanation.split('\n') if p.strip()]
+            
+            # Create a formatted panel for the explanation
+            explanation_text = "\n\n".join(paragraphs)
+            console.print(Panel(
+                explanation_text,
+                border_style="green",
+                expand=True,
+                padding=(1, 2)
+            ))
         
-        console.print("=" * 40)
-
-
-def parse_difficulties(query: str) -> dict:
-    """
-    Parse the query for difficulty instructions.
-    Expected format examples: "3 hard", "2 medium", "5 easy"
-    Returns a dictionary with keys 'hard', 'medium', 'easy' and integer counts.
-    """
-    pattern = r'(\d+)\s*(hard|medium|easy)'
-    matches = re.findall(pattern, query.lower())
-    difficulties = {}
-    for count, level in matches:
-        difficulties[level] = int(count)
-    return difficulties
+        console.print("\n" + "=" * 40)
 
 
 class JSONEncoder(json.JSONEncoder):
@@ -634,6 +665,7 @@ def run_chain(query: str) -> Dict[str, Any]:
                 "\n\nUse the following reference code snippets for context when generating new questions:\n\n"
                 f"{ref_text}"
             )
+       
         # Extra instruction if Programming Fundamentals was requested.
         if rag.file_type == "pf":
              combined_query += (
@@ -648,26 +680,11 @@ def run_chain(query: str) -> Dict[str, Any]:
                 "Focus on classes, constructor and destructor calls, shallow, deep copies, inheritance, operator overloading. "
                 "Mix in manual memory management, pointer manipulation, and other low-level constructs."
                 )
-
-        # Parse and append difficulty instructions if provided
-        difficulties = parse_difficulties(query)
-        if difficulties:
-            diff_instr = "\n\nDIFFICULTY INSTRUCTIONS:\n"
-            diff_instr += "Generate questions with the following difficulty breakdown:\n"
-            for level in ['hard', 'medium', 'easy']:
-                if level in difficulties:
-                    diff_instr += f" - {difficulties[level]} {level} question{'s' if difficulties[level] > 1 else ''}\n"
-            diff_instr += "\nBelow are examples to help you judge the difficulty levels:\n"
-            diff_instr += "\nEasy questions examples:\n"
-            diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nint main()\n{\n    int *a, *b, *c;\n    int x = 800, y = 300;\n    a = &x;\n    b = &y;\n    *a = (*b) - 200;\n    cout<<x<<\" \"<<*a;\n    return 0;\n}\n```\n"
-            diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nint main() {\n    int a = 5;\n    if (a = 0) {\n        cout << \"Zero\" << endl;\n    } else {\n        cout << \"Non-zero\" << endl;\n    }\n    cout << a << endl;\n    return 0;\n}\n```\n"
-            diff_instr += "\nMedium questions examples:\n"
-            diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nvoid find(int a, int &b, int &c, int d)\n{\n    if (d < 1)\n        return;\n    cout << a << \",\" << b << \",\" << c << endl;\n    c = a + 2 * b;\n    int temp = b;\n    b = a;\n    a = 2 * temp;\n    d % 2 ? find(b, a, c, d - 1) : find(c, b, a, d - 1);\n}\n\nint main()\n{\n    int a = 1, b = 2, c = 3, d = 4;\n    find(a, b, c, d);\n    cout << a << \",\" << b << \",\" << c << endl;\n    return 0;\n}\n```\n"
-            diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nint WHAT(int A[], int N) {\n    int ANS = 0;\n    int S = 0;\n    int E = N-1;\n    \n    for(S = 0, E = N-1; S < E; S++, E--) {\n        ANS += A[S] - A[E];\n    }\n    return ANS;\n}\n\nint main() {\n    int A[] = {1, 2, 3, 4, -5, 1, 3, 2, 1};\n    cout << WHAT(A, 7);\n    return 0;\n}\n```\n"
-            diff_instr += "\nHard question example:\n"
-            diff_instr += "```cpp\n#include <iostream>\nusing namespace std;\n\nconst int s = 3;\nint *listMystery(int list[][s])\n{\n    int i = 1, k = 0;\n    int *n = new int[s];\n    for (int i = 0; i < s; ++i)\n        n[i] = 0;\n    while (i < ::s)\n    {\n        int j = ::s - 1;\n        while (j >= i)\n        {\n            n[k++] = list[j][i] * list[i][j];\n            j = j - 1;\n        }\n        i = i + 1;\n    }\n    return n;\n}\nvoid displayMystery(int *arr)\n{\n    cout << \"[ \";\n    for (int i = 0; i < s; ++i)\n        cout << arr[i] << ((i != ::s - 1) ? \", \" : \" \");\n    cout << \"]\" << endl;\n}\nint main()\n{\n    int L[][::s] = {{8, 9, 4}, {2, 3, 4}, {7, 6, 1}};\n    int *ptr = listMystery(L);\n    displayMystery(ptr);\n    delete[] ptr;\n    return 0;\n}\n```\n"
-            combined_query += diff_instr
-
+       
+        # Use preset difficulty from the data.
+        combined_query += (
+            "\n\nIMPORTANT: Generate C++ code snippets based solely on the preset difficulty levels stored in the data. Do not attempt to modify or infer difficulty manually."
+        )
         messages.append(HumanMessage(content=combined_query))
 
         try:
@@ -704,20 +721,22 @@ def run_chain(query: str) -> Dict[str, Any]:
 
 def main():
     """Main function to run the quiz generator."""
+    
+    # Register cache cleanup to run at program exit
+    atexit.register(cache_mgr.cleanup)
+    
     rprint("\n[bold cyan]C++ Quiz Generator[/bold cyan]")
     rprint("=" * 40)
     
     with progress_mgr:
         # Initialize with clear sequence
-        progress_mgr.update_status("Initializing environment...")
         cache_mgr.clear_cache()
-        progress_mgr.complete_task()
         
-        progress_mgr.update_status("Setting up quiz parameters...")
+        progress_mgr.update_status("Processing ...")
         query = "Generate 10 hard difficulty C++ code snippets for PF"
         progress_mgr.complete_task()
         
-        progress_mgr.update_status("Generating quiz questions...")
+        progress_mgr.update_status("Generating questions...")
         result = run_chain(query)
         progress_mgr.complete_task()
         

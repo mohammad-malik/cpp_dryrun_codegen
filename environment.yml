@@ -14,3 +14,4 @@ dependencies:
     - langchain-google-genai
     - rank-bm25
     - typing
+    - markdown2
