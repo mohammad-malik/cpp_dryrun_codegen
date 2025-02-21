@@ -387,8 +387,8 @@ SYSTEM_PROMPT = """You are an expert C++ quiz generator. Follow these strict rul
     * Conditional statement edge cases (if(x=0), switch fallthrough)
     * Bitwise operations
     * Array and pointer arithmetic
-
-    * Recursion edge cases (IF OOP)
+    * Recursion edge cases
+    
     * Operator overloading (IF OOP)
     * Complex templates (IF OOP)
     * Virtual functions (IF OOP)
@@ -671,7 +671,7 @@ def run_chain(query: str) -> Dict[str, Any]:
              combined_query += (
                  "\n\nIMPORTANT: The generated C++ code snippet must strictly adhere to Programming Fundamentals principles. "
                  "Avoid using Object-Oriented Programming constructs such as classes, inheritance, virtual functions, operator overloading, and templates. "
-                 "Instead, focus on pointer manipulation, manual memory management, loop edge cases, and conditional statement quirks."
+                 "Instead, focus on pointer manipulation, manual memory management, loop edge cases, recursion oddities, and conditional statement quirks."
              )
         # Extra instructions if OOP was requested.
         if rag.file_type == "pf":
