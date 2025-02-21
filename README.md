@@ -35,8 +35,15 @@ This project provides a system for:
 
 ## Usage
 
-Run the main script:
+### With python virtual env:
+1. Download `install.sh`
+2. Set it as executable: `chmod +x install.sh`
+3. Wait.
+4. When done, set `run.sh` as executable: `chmod +x ./run.sh`
+5. Run it. `./run.sh`
 
-```sh
-python main.py
-```
+### Alternatively, for those with conda:
+
+1. Download `install_condabased.sh`
+2. Follow the steps above.
+
