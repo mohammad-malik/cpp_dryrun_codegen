@@ -50,7 +50,31 @@ pip install --upgrade pip
 
 # Install requirements
 echo "Installing Python requirements..."
-pip install -r requirements.txt
+python3 -m pip install --upgrade pip
+python3 -m pip install --upgrade wheel setuptools
+
+# Clear pip cache
+echo "Clearing pip cache..."
+python3 -m pip cache purge
+
+# Upgrade pip and tools
+echo "Upgrading pip and tools..."
+python3 -m pip install --upgrade pip
+python3 -m pip install --upgrade wheel setuptools
+
+# Install requirements in order
+echo "Installing packages..."
+while IFS= read -r package || [[ -n "$package" ]]; do
+    if [[ ! $package =~ ^#.* ]] && [[ ! -z "$package" ]]; then
+        echo "Installing $package..."
+        python3 -m pip install $package
+    fi
+done < requirements.txt
+
+# Verify installations
+echo "Verifying installations..."
+python3 -m pip list | grep "google-"
+python3 -m pip list | grep "langchain"
 
 # Create required directories
 mkdir -p cache logs output
