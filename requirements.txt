@@ -1,0 +1,9 @@
+jinja2
+pydantic
+rich
+pydantic-settings
+langchain-core
+langchain-google-genai
+rank-bm25
+typing
+markdown2

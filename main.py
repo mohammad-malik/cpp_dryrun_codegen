@@ -18,7 +18,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from rich.console import Console
 from rich.syntax import Syntax
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
-from rich.live import Live
+
 from rich.panel import Panel
 from rich import print as rprint
 
@@ -349,8 +349,8 @@ llm = ChatGoogleGenerativeAI(
     model="gemini-2.0-flash-thinking-exp-01-21",
     api_key=settings.GOOGLE_API_KEY,
     temperature=1.0,
-    timeout=30,  # Add timeout
-    retry_on_failure=True  # Add retry
+    timeout=30,
+    retry_on_failure=True
 )
 
 
