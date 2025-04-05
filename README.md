@@ -1,13 +1,14 @@
-# C++ Dry Run Code Generator and Runner
+# Agentic C++ Dry Run Code Generator and Runner
 
 A tool for generating and testing "dry runs" (tricky C++ code snippets often asked in exams by universities like FAST) in an isolated Docker environment.
 
 ## Overview
 
 This project provides a system for:
-- Generating challenging C++ code snippets that test understanding of tricky language concepts
-- Running the code snippets safely in a virtual execution environment using Docker
-- Automated testing and verification (as the outputs are fed back to a reasoning LLM)
+- Generating challenging C++ code snippets that test understanding of tricky language concepts taking inspiration from various PF and OOP past papers through Retrieval Augmented Generation (RAG).
+- Running the code snippets safely in a virtual execution environment using Docker, to ensure accuracy.
+- Automated testing and verification (as the outputs are fed back to a reasoning LLM, which generates until it has 10 various questions that meet the criteria and are worth studying).
+- A web interface to view the newly generated code snippets, their outputs, and an explanation for the output.
 
 ## Features
 
